@@ -5,14 +5,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -32,76 +34,53 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-signal: var(--signal);
-  --color-signal-foreground: var(--signal-foreground);
-  --color-danger: var(--danger);
+  --color-link: var(--link);
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Deep near-black with a green/cyan accent — security/observability vibe */
-  --background: oklch(0.16 0.012 250);
-  --foreground: oklch(0.97 0.005 240);
-  --card: oklch(0.20 0.014 250);
-  --card-foreground: oklch(0.97 0.005 240);
-  --popover: oklch(0.20 0.014 250);
-  --popover-foreground: oklch(0.97 0.005 240);
-  --primary: oklch(0.86 0.18 155);
-  --primary-foreground: oklch(0.15 0.02 160);
-  --secondary: oklch(0.24 0.015 250);
-  --secondary-foreground: oklch(0.97 0.005 240);
-  --muted: oklch(0.24 0.015 250);
-  --muted-foreground: oklch(0.66 0.015 250);
-  --accent: oklch(0.78 0.16 195);
-  --accent-foreground: oklch(0.15 0.02 200);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.86 0.18 155 / 60%);
-  --signal: oklch(0.86 0.18 155);
-  --signal-foreground: oklch(0.15 0.02 160);
-  --danger: oklch(0.7 0.22 18);
-
-  --grid-color: oklch(1 0 0 / 4%);
-  --glow: 0 0 60px -10px oklch(0.86 0.18 155 / 35%);
-  --shadow-soft: 0 30px 80px -20px oklch(0 0 0 / 0.6);
+  --radius: 12px;
+  /* Apple-like: near-white surface, near-black ink, single blue link accent */
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.16 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0 0);
+  --primary: oklch(0.16 0 0);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.16 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.46 0 0);
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0.16 0 0);
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 10%);
+  --ring: oklch(0.55 0.18 252 / 50%);
+  --link: oklch(0.55 0.18 252); /* Apple-like blue */
 }
 
 @layer base {
-  * {
-    border-color: var(--color-border);
-  }
+  * { border-color: var(--color-border); }
   html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  ::selection { background: oklch(0.86 0.18 155 / 35%); color: white; }
+  ::selection { background: oklch(0.55 0.18 252 / 25%); }
 }
 
 @layer utilities {
-  .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
   .font-mono { font-family: var(--font-mono); }
-
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-    background-size: 56px 56px;
-  }
-  .bg-radial-fade {
-    background: radial-gradient(ellipse at 50% 0%, oklch(0.86 0.18 155 / 0.18), transparent 60%);
-  }
-  .text-gradient {
-    background: linear-gradient(180deg, oklch(0.99 0 0) 0%, oklch(0.7 0.02 240) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .glow-ring {
-    box-shadow: var(--glow);
-  }
-  .hairline { border: 1px solid var(--color-border); }
+  .text-link { color: var(--color-link); }
 }
