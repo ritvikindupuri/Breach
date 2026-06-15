@@ -4,102 +4,91 @@ import { motion } from "motion/react";
 export const Route = createFileRoute("/configure")({
   head: () => ({
     meta: [
-      { title: "Configure AWS — AIM Proxy" },
+      { title: "Configure — Liminal" },
       {
         name: "description",
         content:
-          "Securely connect your AWS account to AIM Proxy. Credentials are encrypted at rest and scoped per environment.",
+          "Connect AWS to Liminal. Credentials are encrypted at rest and scoped per environment.",
       },
     ],
   }),
   component: Configure,
 });
 
-const ease = [0.16, 1, 0.3, 1] as const;
+const ease = [0.22, 1, 0.36, 1] as const;
 
 function Configure() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_75%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-radial-fade" />
-
-      <header className="relative z-10 mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
-        <Link to="/" className="font-display text-lg">← AIM Proxy</Link>
-        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-          Secure setup
-        </span>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-11 max-w-5xl items-center justify-between px-6 text-[13px]">
+          <Link to="/" className="font-display tracking-tight">‹ Liminal</Link>
+          <span className="text-foreground/50">Secure setup</span>
+        </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-6 pb-24 pt-10">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
+      <main className="mx-auto max-w-2xl px-6 pb-32 pt-24 text-center md:pt-32">
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease }}
+          className="text-[13px] font-medium uppercase tracking-[0.18em] text-foreground/50"
         >
-          <h1 className="font-display text-4xl tracking-tight text-gradient md:text-5xl">
-            Connect AWS, securely.
-          </h1>
-          <p className="mt-4 max-w-xl text-muted-foreground">
-            To store credentials with envelope encryption, signed audit trails, and per-user
-            isolation, enable Lovable Cloud. We&apos;ll wire up the encrypted vault and
-            authenticated configuration flow next.
-          </p>
-        </motion.div>
+          Configure
+        </motion.p>
+        <motion.h1
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease, delay: 0.05 }}
+          className="font-display mt-4 text-balance text-5xl leading-[1.05] md:text-6xl"
+        >
+          Connect AWS.
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease, delay: 0.15 }}
+          className="mx-auto mt-5 max-w-md text-pretty text-foreground/60 md:text-lg"
+        >
+          To store keys with envelope encryption and per-user isolation,
+          enable the secure backend next.
+        </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease, delay: 0.1 }}
-          className="mt-10 grid gap-4"
+          transition={{ duration: 0.9, ease, delay: 0.25 }}
+          className="mx-auto mt-12 max-w-md rounded-2xl border border-border bg-card p-6 text-left text-[15px]"
         >
           {[
-            {
-              k: "01",
-              t: "Authenticated accounts",
-              b: "Each user signs in before they can see or touch their AWS keys.",
-            },
-            {
-              k: "02",
-              t: "Encrypted at rest",
-              b: "Access keys are encrypted server-side. They never appear in logs or telemetry.",
-            },
-            {
-              k: "03",
-              t: "Least-privilege only",
-              b: "We recommend a scoped IAM role rather than a root access key.",
-            },
-          ].map((s, i) => (
-            <motion.div
-              key={s.k}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, ease, delay: 0.15 + i * 0.08 }}
-              className="flex gap-5 rounded-2xl hairline bg-card/60 p-5 backdrop-blur"
+            ["Signed-in accounts", "Each user authenticates before viewing or touching keys."],
+            ["Encrypted at rest", "Keys never appear in logs, telemetry, or client storage."],
+            ["Least privilege", "We recommend a scoped IAM role over a root access key."],
+          ].map(([t, b], i) => (
+            <div
+              key={t}
+              className={
+                "flex gap-4 py-4 " +
+                (i > 0 ? "border-t border-border" : "")
+              }
             >
-              <div className="font-mono text-sm text-signal">{s.k}</div>
+              <span className="font-mono text-[12px] text-foreground/40">0{i + 1}</span>
               <div>
-                <div className="font-display text-lg">{s.t}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{s.b}</div>
+                <div className="font-display tracking-tight">{t}</div>
+                <div className="mt-1 text-[14px] text-foreground/60">{b}</div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease, delay: 0.35 }}
-          className="mt-10 rounded-2xl hairline bg-card/70 p-6 backdrop-blur"
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.9, ease, delay: 0.4 }}
+          className="mt-8 text-[13px] text-foreground/50"
         >
-          <div className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            Next step
-          </div>
-          <p className="mt-2 text-foreground">
-            Ask Lovable to <span className="text-signal">enable Lovable Cloud</span> — we&apos;ll
-            generate the auth flow and the encrypted credential vault for your AWS access key,
-            secret, region, and optional session token.
-          </p>
-        </motion.div>
+          Ask Lovable to enable the secure backend to continue.
+        </motion.p>
       </main>
     </div>
   );
