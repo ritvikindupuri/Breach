@@ -128,7 +128,7 @@ function Hero() {
         transition={{ duration: 0.9, ease, delay: 0.25 }}
         className="mt-8 flex items-center justify-center gap-6 text-[15px]"
       >
-        <Link to="/configure" className="text-link hover:underline">
+        <Link to="/auth" className="text-link hover:underline">
           Connect AWS&nbsp;›
         </Link>
         <a href="#inspection" className="text-link hover:underline">
@@ -336,7 +336,7 @@ function Closer() {
         transition={{ duration: 0.9, ease, delay: 0.1 }}
         className="mt-7"
       >
-        <Link to="/configure" className="text-link text-[15px] hover:underline">
+        <Link to="/auth" className="text-link text-[15px] hover:underline">
           Connect AWS&nbsp;›
         </Link>
       </motion.div>
