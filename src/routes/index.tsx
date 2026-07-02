@@ -72,8 +72,8 @@ function Nav() {
           <a href="#placement" className="hover:text-foreground">Placement</a>
           <a href="#security" className="hover:text-foreground">Security</a>
         </nav>
-        <Link to="/configure" className="text-link hover:underline">
-          Configure&nbsp;›
+        <Link to="/auth" className="text-link hover:underline">
+          Sign in&nbsp;›
         </Link>
       </div>
     </header>
