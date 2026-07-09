@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicRunnerRegisterRouteImport } from './routes/api/public/runner/register'
+import { Route as ApiPublicRunnerHeartbeatRouteImport } from './routes/api/public/runner/heartbeat'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -28,35 +30,70 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRunnerRegisterRoute = ApiPublicRunnerRegisterRouteImport.update({
+  id: '/api/public/runner/register',
+  path: '/api/public/runner/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRunnerHeartbeatRoute =
+  ApiPublicRunnerHeartbeatRouteImport.update({
+    id: '/api/public/runner/heartbeat',
+    path: '/api/public/runner/heartbeat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/auth'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/auth'
-  id: '__root__' | '/' | '/app' | '/auth'
+  to:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   AuthRoute: typeof AuthRoute
+  ApiPublicRunnerHeartbeatRoute: typeof ApiPublicRunnerHeartbeatRoute
+  ApiPublicRunnerRegisterRoute: typeof ApiPublicRunnerRegisterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +119,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/runner/register': {
+      id: '/api/public/runner/register'
+      path: '/api/public/runner/register'
+      fullPath: '/api/public/runner/register'
+      preLoaderRoute: typeof ApiPublicRunnerRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/runner/heartbeat': {
+      id: '/api/public/runner/heartbeat'
+      path: '/api/public/runner/heartbeat'
+      fullPath: '/api/public/runner/heartbeat'
+      preLoaderRoute: typeof ApiPublicRunnerHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +140,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   AuthRoute: AuthRoute,
+  ApiPublicRunnerHeartbeatRoute: ApiPublicRunnerHeartbeatRoute,
+  ApiPublicRunnerRegisterRoute: ApiPublicRunnerRegisterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
