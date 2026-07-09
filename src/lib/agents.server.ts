@@ -60,7 +60,8 @@ async function safeFetch(url: string, init?: RequestInit, timeoutMs = 8000) {
 }
 
 async function updateRun(id: string, patch: Record<string, unknown>) {
-  await supabaseAdmin.from("agent_runs").update(patch).eq("id", id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await supabaseAdmin.from("agent_runs").update(patch as any).eq("id", id);
 }
 
 async function recordFinding(
