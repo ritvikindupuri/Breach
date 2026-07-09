@@ -352,12 +352,10 @@ function EngagementDetail() {
     logs.push(`[SYSTEM] Communicating with GitHub Pull Request API...`);
     setPatchLogs(logs);
 
-    // Call Supabase / Serverless function if it exists, or simulate real branch creation via API
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
       
-      // Attempt call to open real pull request on repo via Edge function if user repo is configured
       const response = await fetch(`${window.location.origin}/api/create-pr`, {
         method: "POST",
         headers: {
@@ -372,7 +370,6 @@ function EngagementDetail() {
         })
       });
 
-      // Whether API routes exist, write logging of the PR creation output
       const resData = await response.json().catch(() => ({}));
       
       setTimeout(() => {
@@ -432,44 +429,100 @@ function EngagementDetail() {
           </div>
         )}
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {/* Left panel - Agent Team Grid */}
-          <div className="lg:col-span-1 space-y-4">
-            <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">AGENT TEAM</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              {agent_runs.map((r) => (
-                <motion.div
-                  key={r.id}
-                  layout
-                  onClick={() => setSelectedRunId(r.id)}
-                  className={`rounded-xl border p-5 cursor-pointer transition-all duration-200 ${
-                    selectedRunId === r.id
-                      ? "border-foreground ring-2 ring-foreground/10 bg-black/[.02]"
-                      : "border-black/10 hover:border-black/30 hover:bg-black/[0.005]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-[13px] font-medium tracking-tight">{formatKind(r.kind)}</div>
-                    <RunPill status={r.status} />
-                  </div>
-                  <div className="mt-2 text-[12px] text-muted-foreground">
-                    {r.current_step ?? (r.status === "pending" ? "waiting for launch…" : "")}
-                  </div>
-                  <div className="mt-3 h-1 overflow-hidden rounded-full bg-black/5">
-                    <div
-                      className="h-full bg-foreground/70 transition-all"
-                      style={{ width: `${Math.min(100, (r.step_count / 3) * 100)}%` }}
-                    />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+        {/* process graph pipeline section */}
+        <div className="mt-10 space-y-4">
+          <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">AI AGENT EXECUTION PIPELINE</h2>
+          <div className="rounded-2xl border border-black/10 bg-black/[.01] p-8 shadow-sm">
+            <div className="flex flex-col md:flex-row items-stretch justify-between gap-6 relative">
+              {/* Connector Line */}
+              <div className="hidden md:block absolute top-1/2 left-12 right-12 h-0.5 bg-black/5 -translate-y-1/2 -z-10">
+                {e.status === "running" && (
+                  <div className="absolute top-0 h-full w-24 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-[shimmer_2s_infinite]" />
+                )}
+              </div>
 
-          {/* Right panel - Real-time Network Inspector */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">LIVE AGENT HTTP TRAFFIC MONITOR</h2>
-            <AgentConsole run={selectedRun} />
+              {agent_runs.map((r, idx) => {
+                const isSelected = selectedRunId === r.id;
+                const kindName = formatKind(r.kind);
+                
+                // SVG Icons for each agent
+                const icons: Record<string, React.ReactNode> = {
+                  recon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" />
+                      <circle cx="12" cy="12" r="6" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
+                  ),
+                  authn: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ),
+                  injection: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <polyline points="16 18 22 12 16 6" />
+                      <polyline points="8 6 2 12 8 18" />
+                      <line x1="12" y1="2" x2="12" y2="22" />
+                    </svg>
+                  ),
+                  supply_chain: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                  ),
+                };
+
+                const findingCount = findings.filter(f => f.agent_run_id === r.id).length;
+
+                return (
+                  <div key={r.id} className="flex-1 w-full flex flex-col items-center">
+                    <motion.div
+                      onClick={() => setSelectedRunId(r.id)}
+                      whileHover={{ scale: 1.02 }}
+                      className={`relative flex flex-col items-center p-5 rounded-2xl border text-center w-full transition-all cursor-pointer ${
+                        isSelected 
+                          ? "bg-white border-foreground shadow-lg shadow-black/5 ring-1 ring-foreground/5" 
+                          : "bg-white border-black/5 hover:border-black/15 shadow-sm"
+                      }`}
+                    >
+                      {/* Step Badge */}
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 text-[9px] font-bold font-mono tracking-wider bg-black text-white">
+                        STEP 0{idx + 1}
+                      </span>
+
+                      {/* Icon */}
+                      <div className={`mt-2 p-3 rounded-xl transition-colors ${
+                        isSelected 
+                          ? "bg-foreground text-background" 
+                          : "bg-black/[0.03] text-muted-foreground"
+                      }`}>
+                        {icons[r.kind] || icons.recon}
+                      </div>
+
+                      <h3 className="mt-3 text-[14px] font-bold tracking-tight text-foreground">{kindName}</h3>
+                      
+                      <div className="mt-1 text-[11px] text-muted-foreground font-mono">
+                        {r.current_step ?? (r.status === "pending" ? "waiting" : r.status)}
+                      </div>
+
+                      <div className="mt-2.5">
+                        <RunPill status={r.status} />
+                      </div>
+
+                      {findingCount > 0 && (
+                        <div className="mt-2.5 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-600 border border-rose-500/20">
+                          {findingCount} {findingCount === 1 ? "finding" : "findings"}
+                        </div>
+                      )}
+                    </motion.div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -569,7 +622,7 @@ function EngagementDetail() {
                       </div>
                     )}
                     
-                    {/* ✨ Auto-Patch with AI Autopilot Trigger Button */}
+                    {/* ✨ Auto-Patch Trigger */}
                     <div className="mt-5 border-t border-black/5 pt-4">
                       <button
                         onClick={() => startPatchingWorkflow(f)}
@@ -591,7 +644,7 @@ function EngagementDetail() {
         </section>
       </div>
 
-      {/* ✨ AI Autopilot Glassmorphism Modal Panel */}
+      {/* AI Autopilot Modal */}
       <AnimatePresence>
         {activePatchFinding && (
           <AutopilotModal
@@ -633,15 +686,14 @@ function AutopilotModal({ finding, status, logs, prStatus, onClose, onOpenPR }: 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
     >
       <motion.div
         initial={{ scale: 0.95, y: 15 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100"
+        className="w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100 font-sans"
       >
-        {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="flex h-2.5 w-2.5 items-center justify-center">
@@ -662,15 +714,13 @@ function AutopilotModal({ finding, status, logs, prStatus, onClose, onOpenPR }: 
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 text-left">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400">Target Vulnerability</div>
             <h3 className="text-lg font-medium tracking-tight text-white mt-1">{finding.title}</h3>
             <p className="text-xs text-zinc-400 mt-1">{finding.description}</p>
           </div>
 
-          {/* Real-time Sandbox Verification Log Console */}
           <div className="space-y-2">
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">Sandbox Auto-Patch & Verify Logs</div>
             <div className="bg-black border border-zinc-900 p-4 rounded-xl font-mono text-[10px] leading-relaxed text-zinc-400 h-[160px] overflow-y-auto space-y-1">
@@ -691,12 +741,11 @@ function AutopilotModal({ finding, status, logs, prStatus, onClose, onOpenPR }: 
             </div>
           </div>
 
-          {/* Interactive Code Diff Panel */}
           {status === "success" && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-2 animate-slide-up"
+              className="space-y-2"
             >
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">Security Patch Diff ({details.file})</div>
@@ -720,17 +769,16 @@ function AutopilotModal({ finding, status, logs, prStatus, onClose, onOpenPR }: 
           )}
         </div>
 
-        {/* Modal Footer */}
         <div className="border-t border-zinc-800 bg-zinc-900/20 px-6 py-4 flex items-center justify-end gap-3">
           {status === "success" ? (
             <>
               {prStatus === "success" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium mr-auto animate-pulse">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="lucide lucide-check-circle">
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium mr-auto">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                     <polyline points="22 4 12 14.01 9 11.01" />
                   </svg>
-                  PR #1 Created Successfully!
+                  PR Created Successfully!
                 </span>
               )}
               
@@ -769,175 +817,6 @@ function AutopilotModal({ finding, status, logs, prStatus, onClose, onOpenPR }: 
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-function AgentConsole({ run }: { run: any }) {
-  if (!run) return null;
-  const transcript = (run.transcript || []) as LogEntry[];
-  const [selectedReqIdx, setSelectedReqIdx] = useState<number | null>(null);
-
-  // Auto-select the first network request when transcript loads
-  useEffect(() => {
-    const firstNetIdx = transcript.findIndex((l) => l.network_request);
-    if (firstNetIdx !== -1 && selectedReqIdx === null) {
-      setSelectedReqIdx(firstNetIdx);
-    }
-  }, [transcript, selectedReqIdx]);
-
-  const selectedLog = selectedReqIdx !== null ? transcript[selectedReqIdx] : null;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm flex flex-col h-[400px]">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-black/5 bg-black/[.02] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-2 w-2 items-center justify-center">
-            <span className={`h-2 w-2 rounded-full ${
-              run.status === "running" ? "bg-blue-600 animate-pulse" :
-              run.status === "complete" ? "bg-emerald-600" :
-              run.status === "failed" ? "bg-rose-600" : "bg-zinc-400"
-            }`} />
-          </span>
-          <span className="font-mono text-xs font-semibold text-foreground/80">
-            {run.kind.toUpperCase()}_AGENT_TRAFFIC_MONITOR
-          </span>
-        </div>
-        <div className="text-[10px] font-mono text-muted-foreground uppercase">
-          {run.status}
-        </div>
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Side: Real-time Trace Log */}
-        <div className="w-1/2 border-r border-black/5 overflow-y-auto p-2 font-mono text-[11px] space-y-1 bg-black/[0.005]">
-          {transcript.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-muted-foreground text-center p-4">
-              <p>Initializing agent runner...</p>
-              <p className="mt-1 text-[10px]">Real-time traffic audit logs will appear here once the agent executes probes.</p>
-            </div>
-          ) : (
-            transcript.map((log, idx) => {
-              const date = new Date(log.timestamp);
-              const timeStr = date.toLocaleTimeString([], { hour12: false });
-              
-              if (log.network_request) {
-                const req = log.network_request;
-                const isErr = req.status >= 400 || req.status === 0;
-                const isSuccess = req.status >= 200 && req.status < 300;
-                
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedReqIdx(idx)}
-                    className={`cursor-pointer p-2 rounded-lg border transition-all text-left ${
-                      selectedReqIdx === idx
-                        ? "bg-foreground text-background border-foreground font-medium"
-                        : "bg-white border-black/5 hover:border-black/15 text-foreground/90"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className={selectedReqIdx === idx ? "text-background/80" : "text-muted-foreground"}>{timeStr}</span>
-                      <span className={`px-1 rounded font-bold text-[9px] ${
-                        isSuccess ? "bg-emerald-500/10 text-emerald-600" :
-                        isErr ? "bg-rose-500/10 text-rose-600" : "bg-amber-500/10 text-amber-600"
-                      }`}>
-                        {req.status === 0 ? "ERR" : req.status}
-                      </span>
-                    </div>
-                    <div className="mt-1 font-mono break-all line-clamp-1">
-                      {req.method} {req.url.replace(/^https?:\/\/[^\/]+/, "")}
-                    </div>
-                  </div>
-                );
-              }
-
-              // Normal log entry
-              const colors = {
-                info: "text-muted-foreground",
-                success: "text-emerald-600 font-medium",
-                warning: "text-amber-600 font-semibold",
-                error: "text-rose-600 font-bold",
-                request: "text-blue-600",
-              };
-              return (
-                <div key={idx} className="p-1.5 text-[10px] text-muted-foreground text-left border-b border-black/[0.02]">
-                  <span className="opacity-65 mr-1.5">{timeStr}</span>
-                  <span className={colors[log.type] || "text-foreground"}>
-                    {log.message}
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Right Side: Network Inspector Panel */}
-        <div className="w-1/2 flex flex-col overflow-hidden bg-white">
-          {selectedLog && selectedLog.network_request ? (
-            <div className="flex-1 flex flex-col overflow-hidden p-3.5 text-left">
-              <div className="flex items-baseline justify-between border-b border-black/5 pb-2">
-                <span className="font-mono text-[12px] font-bold text-foreground">HTTP INSPECTOR</span>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {selectedLog.network_request.duration_ms}ms
-                </span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 font-mono text-[10px] mt-3">
-                {/* General Info */}
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Request URL</div>
-                  <div className="mt-0.5 break-all select-all p-1.5 bg-black/[0.02] rounded border border-black/5 text-[10px]">
-                    {selectedLog.network_request.url}
-                  </div>
-                </div>
-
-                {/* Headers */}
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Request Headers</div>
-                  <pre className="mt-1 p-2 bg-black/[0.02] border border-black/5 rounded text-[9.5px] max-h-[100px] overflow-y-auto leading-relaxed">
-                    {JSON.stringify(selectedLog.network_request.request_headers, null, 2)}
-                  </pre>
-                </div>
-
-                {selectedLog.network_request.request_body && (
-                  <div>
-                    <div className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Request Body</div>
-                    <pre className="mt-1 p-2 bg-black/[0.02] border border-black/5 rounded text-[9.5px] max-h-[100px] overflow-y-auto leading-relaxed">
-                      {selectedLog.network_request.request_body}
-                    </pre>
-                  </div>
-                )}
-
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Response Headers</div>
-                  <pre className="mt-1 p-2 bg-black/[0.02] border border-black/5 rounded text-[9.5px] max-h-[100px] overflow-y-auto leading-relaxed text-left">
-                    {JSON.stringify(selectedLog.network_request.response_headers, null, 2)}
-                  </pre>
-                </div>
-
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Response Body</div>
-                  <pre className="mt-1 p-2 bg-black/[0.02] border border-black/5 rounded text-[9.5px] max-h-[150px] overflow-y-auto leading-relaxed break-all select-all text-left">
-                    {selectedLog.network_request.response_body}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center p-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-network text-muted-foreground/45 mb-2">
-                <rect x="16" y="16" width="6" height="6" rx="1" />
-                <rect x="2" y="16" width="6" height="6" rx="1" />
-                <rect x="9" y="2" width="6" height="6" rx="1" />
-                <path d="M12 8v8M12 8h8M12 8H4" />
-              </svg>
-              <p className="text-[11px]">Select a network request from the trace list to inspect headers and response.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
