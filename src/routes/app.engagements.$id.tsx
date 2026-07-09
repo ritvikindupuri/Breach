@@ -103,7 +103,7 @@ function downloadPdfReport(e: any, runs: any[], findings: any[]) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   runs.forEach((r) => {
-    const kindName = { recon: "Recon", authn: "AuthN", injection: "Injection", supply_chain: "Supply chain" }[r.kind] || r.kind;
+    const kindName = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[r.kind] || r.kind;
     doc.text(`- ${kindName} Agent: ${r.status.toUpperCase()} (${r.current_step || "idle"})`, 14, y);
     y += 6;
   });
@@ -537,7 +537,7 @@ function EngagementDetail() {
 }
 
 function formatKind(k: string) {
-  return { recon: "Recon", authn: "AuthN", injection: "Injection", supply_chain: "Supply chain" }[k] ?? k;
+  return { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[k] ?? k;
 }
 
 function StatusBig({ status }: { status: string }) {
