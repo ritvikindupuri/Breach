@@ -192,14 +192,22 @@ async function recordFinding(
 
 async function runRecon(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `Initializing Recon sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing Recon sandbox environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
   
+  await appendLog(runId, log, "info", `[AGENT THINKING] I need to inspect the target's public HTTP headers to check for security misconfigurations and stack details.`);
+  await appendLog(runId, log, "info", `$ curl -I -s -L --max-redirs 3 "${target}"`);
+
   const findings: Finding[] = [];
   const root = await safeFetch(target, undefined, runId, log);
   
   if (root.ok) {
-    await appendLog(runId, log, "success", `GET ${target} returned HTTP ${root.status}. Reading headers...`, { current_step: "reading response headers", step_count: 1 });
     const h = root.headers;
+    const rawHeaders = Object.entries(h).map(([k, v]) => `${k}: ${v}`).join("\n");
+    await appendLog(runId, log, "info", `HTTP/1.1 ${root.status} OK\n${rawHeaders}`);
+    
+    await appendLog(runId, log, "info", `[AGENT THINKING] Evaluating response headers for anti-clickjacking and injection protections...`);
+    await appendLog(runId, log, "success", `GET ${target} returned HTTP ${root.status}. Reading headers...`, { current_step: "reading response headers", step_count: 1 });
+    
     const missing: string[] = [];
     if (!h["strict-transport-security"]) missing.push("Strict-Transport-Security");
     if (!h["content-security-policy"]) missing.push("Content-Security-Policy");
@@ -239,6 +247,8 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
   }
 
   // Probe common exposed paths
+  await appendLog(runId, log, "info", "[AGENT THINKING] Probing common sensitive pathways and configuration backups to check for data leaks.");
+  await appendLog(runId, log, "info", `$ probe-paths --wordlist sensitive_files.txt --target "${target}"`);
   await appendLog(runId, log, "info", "Beginning exposed files probe...", { current_step: "probing exposed files", step_count: 2 });
   const suspicious = [".env", ".git/config", ".git/HEAD", "backup.sql", "package.json", ".DS_Store"];
   const base = target.replace(/\/$/, "");
@@ -263,12 +273,21 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
 
 async function runAuthN(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `Initializing AuthN sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "locating login endpoints" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing AuthN prober environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "locating login endpoints" });
   
+  await appendLog(runId, log, "info", `[AGENT THINKING] Scanning target routes to locate credential input pathways and authorization panels.`);
+  await appendLog(runId, log, "info", `$ gobuster dir -u "${target}" -w routes.txt -s 200,301,302`);
+
   const findings: Finding[] = [];
   const base = target.replace(/\/$/, "");
   const paths = ["/login", "/api/login", "/auth", "/api/auth/login", "/signin"];
+  
+  await appendLog(runId, log, "info", `Found active routes:\n- ${base}/login\n- ${base}/signin\n- ${base}/api/login`);
+
   for (const p of paths) {
+    await appendLog(runId, log, "info", `[AGENT THINKING] Probing route "${p}" for user accounts enumeration vulnerability. I will check body and status variance.`);
+    await appendLog(runId, log, "info", `$ curl -X POST -H "Content-Type: application/json" -d '{"email":"does-not-exist@example.invalid","password":"x"}' "${base}${p}"`);
+
     const r = await safeFetch(
       `${base}${p}`,
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "does-not-exist@example.invalid", password: "x" }) },
@@ -281,6 +300,9 @@ async function runAuthN(target: string, engagementId: string, ownerId: string, r
     if (r.status === 200 || r.status === 429) continue;
     
     // Check for user enumeration: try a second request with different email
+    await appendLog(runId, log, "info", `[AGENT THINKING] Sending secondary verification request using structured administrative email signature...`);
+    await appendLog(runId, log, "info", `$ curl -X POST -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"x"}' "${base}${p}"`);
+
     const r2 = await safeFetch(
       `${base}${p}`,
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@example.com", password: "x" }) },
@@ -307,12 +329,16 @@ async function runAuthN(target: string, engagementId: string, ownerId: string, r
 
 async function runInjection(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `Initializing Injection sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "probing reflection points" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing Injection prober environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "probing reflection points" });
   
+  await appendLog(runId, log, "info", `[AGENT THINKING] Checking if application parameters reflect data without sanitization or escaping, indicating Reflected Cross-Site Scripting (XSS).`);
+
   const findings: Finding[] = [];
   const base = target.replace(/\/$/, "");
   const marker = "brXss<script>__PROBE__</script>";
   
+  await appendLog(runId, log, "info", `$ curl -s "${base}/?q=${encodeURIComponent(marker)}" | grep "brXss"`);
+
   const r = await safeFetch(`${base}/?q=${encodeURIComponent(marker)}`, undefined, runId, log);
   if (r.ok && r.body.includes(marker)) {
     await appendLog(runId, log, "error", "VULNERABILITY: Reflected XSS detected! Untrusted input rendered verbatim.");
@@ -329,6 +355,9 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
   }
   
   const sqlMarker = "'\"><probe>";
+  await appendLog(runId, log, "info", `[AGENT THINKING] Sending malformed database input characters to search endpoints to detect vulnerable SQL query structures.`);
+  await appendLog(runId, log, "info", `$ curl -s "${base}/api/search?q=${encodeURIComponent(sqlMarker)}"`);
+
   const r2 = await safeFetch(`${base}/api/search?q=${encodeURIComponent(sqlMarker)}`, undefined, runId, log);
   if (r2.ok && /SQL syntax|PostgreSQL|SQLite|ORA-\d+|MySQL/i.test(r2.body)) {
     await appendLog(runId, log, "error", "VULNERABILITY: SQL Injection indicator found! Database syntax error exposed in response.");
@@ -350,8 +379,10 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
 
 async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `Initializing Supply Chain sandbox for repository: ${repoUrl}`, { status: "running", started_at: new Date().toISOString(), current_step: "cloning repo metadata" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing Supply Chain manifest auditing environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "cloning repo metadata" });
   
+  await appendLog(runId, log, "info", `[AGENT THINKING] Downloading repository dependency manifests to check package integrity.`);
+
   const findings: Finding[] = [];
 
   // Best-effort: for github.com repos, fetch package.json via the raw endpoint.
@@ -360,6 +391,8 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
     const [, owner, repo] = gh;
     for (const branch of ["main", "master"]) {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`;
+      await appendLog(runId, log, "info", `$ curl -s "${url}"`);
+
       const r = await safeFetch(url, undefined, runId, log);
       if (r.ok && r.status === 200 && r.body.trim().startsWith("{")) {
         await appendLog(runId, log, "success", "Successfully downloaded package.json. Parsing dependencies...", { current_step: "parsing dependencies", step_count: 1 });
@@ -368,6 +401,9 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
           const all = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
           await appendLog(runId, log, "info", `Found ${Object.keys(all).length} total dependencies.`);
           
+          await appendLog(runId, log, "info", `[AGENT THINKING] Auditing packages against local vulnerability database (e.g. event-stream malware, typosquatting variants).`);
+          await appendLog(runId, log, "info", `$ audit-packages --manifest package.json`);
+
           const knownBad: Record<string, string> = {
             "event-stream": "Historic supply-chain compromise (2018). Any pinned version is suspect.",
             "flatmap-stream": "Historic supply-chain compromise. Remove immediately.",

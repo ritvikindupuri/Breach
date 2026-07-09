@@ -526,6 +526,90 @@ function EngagementDetail() {
           </div>
         </div>
 
+        {selectedRun && (
+          <div className="mt-6 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl text-left">
+            {/* Console Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-4 py-2.5">
+              <div className="flex items-center gap-2 font-mono text-[11px] font-semibold text-zinc-300">
+                <span className="flex h-3 w-3 items-center justify-center">
+                  <span className={`h-2 w-2 rounded-full ${
+                    selectedRun.status === "running" ? "bg-blue-500 animate-pulse" :
+                    selectedRun.status === "complete" ? "bg-emerald-500" :
+                    selectedRun.status === "failed" ? "bg-rose-500" : "bg-zinc-500"
+                  }`} />
+                </span>
+                <span>{selectedRun.kind.toUpperCase()}_AGENT_CONSOLE@sandbox</span>
+              </div>
+              <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+                <span>tty1</span>
+                <span>80x24</span>
+                <div className="flex gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                </div>
+              </div>
+            </div>
+
+            {/* Console Body */}
+            <div className="h-[300px] overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-zinc-300 select-text bg-zinc-950">
+              {(!selectedRun.transcript || selectedRun.transcript.length === 0) ? (
+                <div className="flex h-full flex-col items-center justify-center text-zinc-500 text-center">
+                  <p>Initializing agent prober container...</p>
+                  <p className="mt-1 text-[10px]">Real-time execution logs will print here as the agent tests parameters.</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(selectedRun.transcript as LogEntry[]).map((log, idx) => {
+                    const date = new Date(log.timestamp);
+                    const timeStr = date.toLocaleTimeString([], { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
+                    
+                    let lineClass = "text-zinc-300";
+                    if (log.message.includes("[AGENT THINKING]") || log.message.includes("[THINKING]")) {
+                      lineClass = "text-violet-400 font-semibold italic";
+                    } else if (log.message.startsWith("$")) {
+                      lineClass = "text-emerald-400 font-bold";
+                    } else if (log.message.includes("VULNERABILITY:") || log.message.includes("ALERT:")) {
+                      lineClass = "text-rose-500 font-bold bg-rose-950/20 px-1 py-0.5 rounded";
+                    } else if (log.type === "success") {
+                      lineClass = "text-emerald-500";
+                    } else if (log.type === "warning") {
+                      lineClass = "text-amber-500";
+                    } else if (log.type === "error") {
+                      lineClass = "text-rose-500 font-semibold";
+                    } else if (log.type === "request") {
+                      lineClass = "text-blue-400";
+                    }
+                    
+                    return (
+                      <div key={idx} className="flex items-start gap-3 hover:bg-zinc-900/30 py-0.5 px-1 rounded transition-colors break-all">
+                        <span className="text-zinc-600 select-none">{timeStr}</span>
+                        <span className={lineClass}>
+                          {log.message}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Blinking cursor */}
+                  {selectedRun.status === "running" && (
+                    <div className="flex items-center gap-1 text-blue-400 font-semibold mt-2 px-1">
+                      <span>{selectedRun.kind.toLowerCase()}-agent@sandbox:~$</span>
+                      <span className="inline-block h-3 w-1.5 bg-blue-400 animate-pulse" />
+                    </div>
+                  )}
+
+                  {selectedRun.status === "complete" && (
+                    <div className="text-emerald-500 font-semibold mt-2 px-1">
+                      <span>{selectedRun.kind.toLowerCase()}-agent@sandbox:~$ exit</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <section className="mt-12">
           {/* Filter Bar and Report download */}
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
