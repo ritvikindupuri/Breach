@@ -126,15 +126,15 @@ function Hero() {
 
 function How() {
   const steps = [
-    { k: "01", t: "Register a Host Auditor", d: "Add a new auditor client in the dashboard and get a secure one-step connection bootstrap key." },
-    { k: "02", t: "Deploy the local agent", d: "Run the lightweight container auditor on your host. It links to the Docker socket to verify local policies." },
-    { k: "03", t: "Agents audit environment", d: "Specialist agents execute daemon inspection, scan manifest dependencies, check container escapes, and probe APIs." },
-    { k: "04", t: "Remediate findings", d: "Review security reports with step-by-step reproduction code, database stack outputs, and plain-English recommendations." },
+    { k: "01", t: "Point us at your repo", d: "Paste your GitHub URL, select your branch, and configure the target application URL." },
+    { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team rejects it." },
+    { k: "03", t: "Agents audit in parallel", d: "Specialist agents inspect your Dockerfile configurations, audit manifests, check auth routes, and fuzz APIs." },
+    { k: "04", t: "Reproduction reports", d: "Get detailed severity-graded findings with reproduction logs, remediation guidelines, and downloadable PDFs." },
   ];
   return (
     <section id="how" className="border-t border-black/5 bg-black/[.015]">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
-        <h2 className="max-w-2xl font-serif text-3xl tracking-[-0.02em] md:text-5xl">How Breach Audits Your Host</h2>
+        <h2 className="max-w-2xl font-serif text-3xl tracking-[-0.02em] md:text-5xl">How an engagement runs.</h2>
         <div className="mt-16 flex flex-col md:flex-row items-stretch justify-between gap-8 md:gap-4">
           {steps.map((s, i) => (
             <motion.div
@@ -257,18 +257,18 @@ function Team() {
 
 function Trust() {
   const points = [
-    { t: "Secure read-only socket mounts.", d: "The auditor reads container manifests and daemon files without write permissions to the host OS layers, ensuring zero modifications to host files." },
-    { t: "No cloud telemetry leaks.", d: "Raw image layers and source code stay inside your host sandbox. The auditor reports only structural security findings back to the control panel." },
-    { t: "Tamper-evident audit chain.", d: "Every auditor agent validates commands via signed bootstrap handshakes, keeping execution logs authentic." },
+    { t: "Disposable Docker sandboxes.", d: "We clone your repository into an isolated runtime container environment that is completely destroyed immediately post-run." },
+    { t: "No persistent code storage.", d: "Your source code files are deleted the second the audit completes. We save only the structural vulnerability findings." },
+    { t: "Real exploit replication.", d: "Every warning or configuration flaw discovered is verified with non-destructive, safe exploit payload probes." },
   ];
   return (
     <section id="trust" className="border-t border-black/5 bg-black/[.015]">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
         <div className="grid gap-14 md:grid-cols-[1fr_2fr]">
           <div>
-            <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Built for Isolation.</h2>
+            <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Sandbox First.</h2>
             <p className="mt-5 text-[14px] leading-relaxed text-muted-foreground">
-              Auditing infrastructure requires trusted containment. We designed our agent to have a zero host footprint.
+              We test destructively. That only works if the blast radius is zero.
             </p>
           </div>
           <div className="space-y-10">
@@ -302,14 +302,14 @@ function CTA() {
           transition={{ duration: 0.7, ease }}
           className="mx-auto max-w-3xl font-serif text-4xl leading-[1.05] tracking-[-0.02em] md:text-6xl"
         >
-          Secure your host. Protect your images.
+          Find the bug before it finds a headline.
         </motion.h2>
         <div className="mt-10">
           <Link
             to="/auth"
             className="inline-block rounded-full bg-foreground px-8 py-4 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
           >
-            Start your host audit
+            Start your first engagement
           </Link>
         </div>
       </div>
