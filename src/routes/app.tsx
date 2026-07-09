@@ -52,7 +52,7 @@ function AppShell() {
               Engagements
             </TabButton>
             <TabButton active={tab === "runners"} onClick={() => setTab("runners")}>
-              Runners
+              Host Auditors
             </TabButton>
           </nav>
           <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
@@ -707,6 +707,15 @@ function BootstrapModal({
   token: string;
   onClose: () => void;
 }) {
+  const [step, setStep] = useState(1);
+  const [copied, setCopied] = useState(false);
+  const [connected, setConnected] = useState(false);
+
+  // Prerequisites checklist states
+  const [chk1, setChk1] = useState(false);
+  const [chk2, setChk2] = useState(false);
+  const [chk3, setChk3] = useState(false);
+
   const origin = typeof window !== "undefined" ? window.location.origin : "https://breach.app";
   const cmd = `docker run --rm -d \\
   --name breach-runner \\
@@ -715,6 +724,34 @@ function BootstrapModal({
   -e BREACH_RUNNER_ID=${runnerId} \\
   -e BREACH_BOOTSTRAP=${token} \\
   ghcr.io/breach/runner:latest`;
+
+  // Live handshake polling in Step 3
+  useEffect(() => {
+    if (step !== 3 || connected) return;
+    const interval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("runners")
+          .select("status")
+          .eq("id", runnerId)
+          .single();
+        if (!error && data?.status === "online") {
+          setConnected(true);
+          clearInterval(interval);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [step, runnerId, connected]);
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(cmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -726,27 +763,177 @@ function BootstrapModal({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-xl rounded-2xl bg-background p-8 shadow-2xl"
+        className="w-full max-w-xl rounded-2xl bg-background p-8 shadow-2xl text-left"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="font-serif text-2xl tracking-[-0.02em]">Runner ready</h2>
-        <p className="mt-2 text-[13px] text-muted-foreground">
-          Copy this once — the bootstrap token is shown only now. Run it on any Docker-capable host.
-        </p>
-        <pre className="mt-4 overflow-x-auto rounded-xl bg-black text-[11px] leading-relaxed text-emerald-300 p-4 font-mono">
-{cmd}
-        </pre>
-        <button
-          onClick={() => navigator.clipboard.writeText(cmd)}
-          className="mt-3 rounded-full border border-black/10 px-4 py-2 text-[12px] hover:bg-black/[.03]"
-        >
-          Copy command
-        </button>
-        <div className="mt-6 flex justify-end">
-          <button onClick={onClose} className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background">
-            Done
-          </button>
+        {/* Step Progress Indicators */}
+        <div className="flex items-center justify-between border-b border-black/5 pb-4 mb-6">
+          <h2 className="font-serif text-2xl tracking-[-0.02em] text-foreground">Set up Host Auditor</h2>
+          <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+            <span className={`px-2 py-0.5 rounded ${step === 1 ? "bg-black text-white font-bold" : "bg-black/[0.04]"}`}>1. Verify</span>
+            <span className="text-black/25">➔</span>
+            <span className={`px-2 py-0.5 rounded ${step === 2 ? "bg-black text-white font-bold" : "bg-black/[0.04]"}`}>2. Run</span>
+            <span className="text-black/25">➔</span>
+            <span className={`px-2 py-0.5 rounded ${step === 3 ? "bg-black text-white font-bold" : "bg-black/[0.04]"}`}>3. Connect</span>
+          </div>
         </div>
+
+        {/* Step 1: Verify Prerequisites */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
+              Before deploying the security auditor agent, please verify your target host environment satisfies these requirements:
+            </p>
+            <div className="space-y-2 bg-black/[0.01] border border-black/5 rounded-xl p-5">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={chk1} 
+                  onChange={(e) => setChk1(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-black/15 text-black focus:ring-black"
+                />
+                <div className="text-[13px] leading-tight">
+                  <span className="font-semibold block">Host has Docker installed</span>
+                  <span className="text-muted-foreground text-[11px]">Run `docker --version` in terminal to confirm availability.</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer pt-3 border-t border-black/5 mt-3">
+                <input 
+                  type="checkbox" 
+                  checked={chk2} 
+                  onChange={(e) => setChk2(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-black/15 text-black focus:ring-black"
+                />
+                <div className="text-[13px] leading-tight">
+                  <span className="font-semibold block">Docker Daemon active</span>
+                  <span className="text-muted-foreground text-[11px]">The daemon service must be running with socket capabilities enabled.</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer pt-3 border-t border-black/5 mt-3">
+                <input 
+                  type="checkbox" 
+                  checked={chk3} 
+                  onChange={(e) => setChk3(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-black/15 text-black focus:ring-black"
+                />
+                <div className="text-[13px] leading-tight">
+                  <span className="font-semibold block">Outbound network route permitted</span>
+                  <span className="text-muted-foreground text-[11px]">The auditor container must have HTTPS access back to this console API.</span>
+                </div>
+              </label>
+            </div>
+            
+            <div className="mt-8 flex justify-end gap-2 pt-2">
+              <button onClick={onClose} className="rounded-full px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+                Cancel
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                disabled={!chk1 || !chk2 || !chk3}
+                className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background disabled:opacity-40"
+              >
+                Next Step
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Deployment command */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
+              Launch the auditor agent inside a Docker container. Mounting the Unix socket allows the container to audit your runtime environment configurations and list images:
+            </p>
+            
+            <div className="relative">
+              <pre className="overflow-x-auto rounded-xl bg-black text-[11px] leading-relaxed text-emerald-300 p-5 font-mono">
+{cmd}
+              </pre>
+              <button
+                onClick={copyToClipboard}
+                className="absolute top-3 right-3 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-2.5 py-1 text-[10px] font-mono border border-zinc-700 transition-colors"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            
+            <p className="text-[11px] text-muted-foreground">
+              ⚠️ Copy this bootstrap token now. It contains critical environment keys and won't be shown again.
+            </p>
+
+            <div className="mt-8 flex justify-end gap-2 pt-2">
+              <button onClick={() => setStep(1)} className="rounded-full px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+                Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background"
+              >
+                Next: Connect
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Connection Handshake verification */}
+        {step === 3 && (
+          <div className="space-y-6 py-4 text-center">
+            {!connected ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <span className="relative flex h-10 w-10">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-10 w-10 bg-indigo-500 items-center justify-center text-white">
+                    <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </span>
+                </span>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-[15px] text-foreground">Awaiting Host Connection</h3>
+                  <p className="text-[12px] text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    Execute the docker command on your host terminal. We are listening for the initial agent configuration handshake...
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex flex-col items-center justify-center space-y-4"
+              >
+                <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-serif text-xl tracking-tight text-emerald-800">Connection Successful!</h3>
+                  <p className="text-[12px] text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    Auditor Agent handshake completed. The daemon socket has connected successfully and host compliance audits are active.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            <div className="mt-8 flex justify-end gap-2 pt-2 border-t border-black/5">
+              {!connected && (
+                <button onClick={() => setStep(2)} className="rounded-full px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground mr-auto">
+                  Back to command
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                disabled={!connected}
+                className="rounded-full bg-foreground px-6 py-2 text-[13px] font-medium text-background disabled:opacity-40"
+              >
+                Finish Setup
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
