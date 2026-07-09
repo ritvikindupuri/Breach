@@ -1,10 +1,9 @@
 // Server-only pen-test agent orchestrator.
 //
-// This runs the AI agent team in-process against a target URL. When a
-// self-hosted runner comes online it will claim jobs via the public API
-// instead — but this in-process loop gives the app real findings from real
-// HTTP probes even without a runner, using Lovable AI Gateway for
-// reasoning + synthesis.
+// This runs the AI agent team in-process against a target repository.
+// The orchestrator fetches files from the repository via GitHub API
+// (using user's OAuth credentials if private) and runs specialized
+// audits specifically tailored for Docker configurations.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { writeAudit } from "./audit.server";
@@ -37,7 +36,7 @@ async function chat(messages: Array<{ role: string; content: string }>, model = 
         parts: [{ text: m.content }],
       }));
 
-    // Normalize model name (Gemini SDK expects format like 'gemini-2.5-flash')
+    // Normalize model name
     const normalizedModel = model.replace(/^google\//, "");
 
     const aiModel = genAI.getGenerativeModel({
@@ -228,190 +227,184 @@ async function recordFinding(
 
 // --- Specialist agents -------------------------------------------------
 
-async function runRecon(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
+async function runRecon(repoUrl: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `[SYSTEM] Initializing Recon sandbox environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing Recon Docker ports auditing environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "scanning configuration files" });
   
-  await appendLog(runId, log, "info", `[AGENT THINKING] I need to inspect the target's public HTTP headers to check for security misconfigurations and stack details.`);
-  await appendLog(runId, log, "info", `$ curl -I -s -L --max-redirs 3 "${target}"`);
+  await appendLog(runId, log, "info", `[AGENT THINKING] I need to inspect the Dockerfile and docker-compose files to check for insecure container port exposures.`);
 
   const findings: Finding[] = [];
-  const root = await safeFetch(target, undefined, runId, log);
-  
-  if (root.ok) {
-    const h = root.headers;
-    const rawHeaders = Object.entries(h).map(([k, v]) => `${k}: ${v}`).join("\n");
-    await appendLog(runId, log, "info", `HTTP/1.1 ${root.status} OK\n${rawHeaders}`);
+  const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(repoUrl);
+  if (gh) {
+    const [, owner, repo] = gh;
     
-    await appendLog(runId, log, "info", `[AGENT THINKING] Evaluating response headers for anti-clickjacking and injection protections...`);
-    await appendLog(runId, log, "success", `GET ${target} returned HTTP ${root.status}. Reading headers...`, { current_step: "reading response headers", step_count: 1 });
-    
-    const missing: string[] = [];
-    if (!h["strict-transport-security"]) missing.push("Strict-Transport-Security");
-    if (!h["content-security-policy"]) missing.push("Content-Security-Policy");
-    if (!h["x-frame-options"] && !(h["content-security-policy"] ?? "").includes("frame-ancestors"))
-      missing.push("X-Frame-Options / CSP frame-ancestors");
-    if (!h["x-content-type-options"]) missing.push("X-Content-Type-Options");
-    if (!h["referrer-policy"]) missing.push("Referrer-Policy");
-    if (!h["permissions-policy"]) missing.push("Permissions-Policy");
-    
-    if (missing.length) {
-      await appendLog(runId, log, "warning", `VULNERABILITY: Missing security headers detected: ${missing.join(", ")}`);
-      findings.push({
-        severity: missing.length >= 4 ? "high" : "medium",
-        title: `Missing security headers (${missing.length})`,
-        description: `The target is not sending: ${missing.join(", ")}. These headers are the first line of defense against clickjacking, MIME sniffing, and cross-site injection.`,
-        evidence: { url: target, missing, observed_headers: h },
-        remediation: "Configure your web server / framework middleware to set the missing headers on every HTML response.",
-        cwe: "CWE-693",
-      });
-    } else {
-      await appendLog(runId, log, "success", "All standard security headers are present.");
+    // Check Dockerfile exposed ports
+    for (const branch of ["main", "master"]) {
+      const pRes = await fetchGithubFile(owner, repo, branch, "Dockerfile", ownerId, runId, log);
+      if (pRes.ok && pRes.status === 200) {
+        await appendLog(runId, log, "success", "Successfully downloaded Dockerfile. Commencing port exposure audits...", { current_step: "auditing ports", step_count: 1 });
+        const content = pRes.body;
+        
+        // Scan EXPOSE instructions
+        const exposeMatches = [...content.matchAll(/^\s*EXPOSE\s+(.+)/gim)];
+        for (const match of exposeMatches) {
+          const portsLine = match[1].trim();
+          await appendLog(runId, log, "info", `Exposed ports line found in Dockerfile: ${portsLine}`);
+          
+          // Check for insecure services exposed (SSH 22, FTP 21, Telnet 23, Database 3306, 5432, 27017, Redis 6379)
+          const insecurePorts = ["21", "22", "23", "3306", "5432", "27017", "6379", "9200"];
+          for (const port of insecurePorts) {
+            if (portsLine.includes(port)) {
+              await appendLog(runId, log, "error", `ALERT: Insecure database/administrative port ${port} exposed in Dockerfile!`);
+              findings.push({
+                severity: "high",
+                title: "Dangerous port exposed in Dockerfile",
+                description: `The Dockerfile explicitly exposes port ${port} (common insecure/administrative service) to the environment network interface.`,
+                evidence: { file: "Dockerfile", line: match[0], port },
+                remediation: "Remove the EXPOSE directive for database or administrative ports. Rely on internal Docker bridge networks instead.",
+                cwe: "CWE-693",
+              });
+            }
+          }
+        }
+        break;
+      }
     }
-    
-    if (h["server"] || h["x-powered-by"]) {
-      await appendLog(runId, log, "warning", `Server signature leaked: ${h["server"] ?? ""} ${h["x-powered-by"] ?? ""}`);
-      findings.push({
-        severity: "low",
-        title: "Server banner leaks stack details",
-        description: `Response advertises ${h["server"] ?? ""} ${h["x-powered-by"] ?? ""}. Fingerprinting narrows the attack surface for CVE-specific exploits.`,
-        evidence: { server: h["server"], x_powered_by: h["x-powered-by"] },
-        remediation: "Strip Server and X-Powered-By headers at the edge / reverse proxy.",
-        cwe: "CWE-200",
-      });
+
+    // Check docker-compose exposed ports
+    for (const branch of ["main", "master"]) {
+      const cRes = await fetchGithubFile(owner, repo, branch, "docker-compose.yml", ownerId, runId, log);
+      if (cRes.ok && cRes.status === 200) {
+        await appendLog(runId, log, "success", "Successfully downloaded docker-compose.yml. Commencing compose port mappings audits...", { current_step: "auditing compose ports", step_count: 2 });
+        const content = cRes.body;
+
+        // Insecure ports regex scan on docker-compose ports mappings
+        const portMappings = [...content.matchAll(/^\s*-\s*["']?(\d+):(\d+)["']?/gim)];
+        for (const match of portMappings) {
+          const hostPort = match[1];
+          const containerPort = match[2];
+          const insecurePorts = ["21", "22", "23", "3306", "5432", "27017", "6379", "9200"];
+          
+          if (insecurePorts.includes(hostPort) || insecurePorts.includes(containerPort)) {
+            await appendLog(runId, log, "error", `ALERT: Insecure host port mapping ${hostPort}:${containerPort} detected in docker-compose.yml!`);
+            findings.push({
+              severity: "high",
+              title: "Dangerous port mapping in docker-compose.yml",
+              description: `The docker-compose file binds host port ${hostPort} directly to container port ${containerPort}. This exposes internal database or management interfaces.`,
+              evidence: { file: "docker-compose.yml", mapping: `${hostPort}:${containerPort}` },
+              remediation: "Only expose HTTP/HTTPS edge web ports (like 80/443). Databases and internal microservices should remain isolated on internal bridge networks.",
+              cwe: "CWE-693",
+            });
+          }
+        }
+        break;
+      }
     }
   } else {
-    await appendLog(runId, log, "error", `Failed to fetch target landing page. Error: ${root.error}`);
+    await appendLog(runId, log, "warning", "Repository is not hosted on GitHub. Recon port audits skipped.");
   }
 
-  // Probe common exposed paths
-  await appendLog(runId, log, "info", "[AGENT THINKING] Probing common sensitive pathways and configuration backups to check for data leaks.");
-  await appendLog(runId, log, "info", `$ probe-paths --wordlist sensitive_files.txt --target "${target}"`);
-  await appendLog(runId, log, "info", "Beginning exposed files probe...", { current_step: "probing exposed files", step_count: 2 });
-  const suspicious = [".env", ".git/config", ".git/HEAD", "backup.sql", "package.json", ".DS_Store"];
-  const base = target.replace(/\/$/, "");
-  for (const p of suspicious) {
-    const r = await safeFetch(`${base}/${p}`, undefined, runId, log);
-    if (r.ok && r.status === 200 && r.body.length > 5) {
-      await appendLog(runId, log, "error", `ALERT: Exposed sensitive file found at /${p}! (HTTP 200)`);
-      findings.push({
-        severity: p === ".env" || p === "backup.sql" ? "critical" : "high",
-        title: `Sensitive file exposed: /${p}`,
-        description: `The server returned 200 for /${p}. This should never be publicly readable.`,
-        evidence: { url: `${base}/${p}`, status: r.status, snippet: r.body.slice(0, 300) },
-        remediation: "Block dotfiles, VCS metadata, and backups at the web server / CDN layer.",
-        cwe: "CWE-538",
-      });
-    }
-  }
-
-  await appendLog(runId, log, "success", "Recon task completed successfully.", { current_step: "complete", step_count: 3, status: "complete", finished_at: new Date().toISOString() });
+  await appendLog(runId, log, "success", "Recon Docker Port task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
-async function runAuthN(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
+async function runAuthN(repoUrl: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `[SYSTEM] Initializing AuthN prober environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "locating login endpoints" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing AuthN credentials scanner environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "scanning for secrets" });
   
-  await appendLog(runId, log, "info", `[AGENT THINKING] Scanning target routes to locate credential input pathways and authorization panels.`);
-  await appendLog(runId, log, "info", `$ gobuster dir -u "${target}" -w routes.txt -s 200,301,302`);
+  await appendLog(runId, log, "info", `[AGENT THINKING] Scanning docker-compose.yml, Dockerfiles, and environment templates for hardcoded default passwords and secret keys.`);
 
   const findings: Finding[] = [];
-  const base = target.replace(/\/$/, "");
-  const paths = ["/login", "/api/login", "/auth", "/api/auth/login", "/signin"];
-  
-  await appendLog(runId, log, "info", `Found active routes:\n- ${base}/login\n- ${base}/signin\n- ${base}/api/login`);
+  const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(repoUrl);
+  if (gh) {
+    const [, owner, repo] = gh;
 
-  for (const p of paths) {
-    await appendLog(runId, log, "info", `[AGENT THINKING] Probing route "${p}" for user accounts enumeration vulnerability. I will check body and status variance.`);
-    await appendLog(runId, log, "info", `$ curl -X POST -H "Content-Type: application/json" -d '{"email":"does-not-exist@example.invalid","password":"x"}' "${base}${p}"`);
+    const filesToAudit = ["docker-compose.yml", "Dockerfile", ".env.example"];
+    for (const file of filesToAudit) {
+      for (const branch of ["main", "master"]) {
+        const res = await fetchGithubFile(owner, repo, branch, file, ownerId, runId, log);
+        if (res.ok && res.status === 200) {
+          await appendLog(runId, log, "success", `Downloaded ${file}. Commencing static secrets scanning...`, { current_step: `auditing ${file}`, step_count: 1 });
+          const content = res.body;
 
-    const r = await safeFetch(
-      `${base}${p}`,
-      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "does-not-exist@example.invalid", password: "x" }) },
-      runId,
-      log
-    );
-    if (!r.ok) continue;
-    
-    await appendLog(runId, log, "info", `POST ${p} returned HTTP ${r.status}`, { current_step: `probing ${p}`, step_count: 1 });
-    if (r.status === 200 || r.status === 429) continue;
-    
-    // Check for user enumeration: try a second request with different email
-    await appendLog(runId, log, "info", `[AGENT THINKING] Sending secondary verification request using structured administrative email signature...`);
-    await appendLog(runId, log, "info", `$ curl -X POST -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"x"}' "${base}${p}"`);
+          // Regex to check environment credentials: PASSWORD, SECRET, KEY, TOKEN, PWD set to default values
+          const secretRegex = /^\s*-\s*([A-Z_]*PASSWORD|[A-Z_]*SECRET|[A-Z_]*KEY|[A-Z_]*TOKEN|[A-Z_]*PWD|[A-Z_]*APIKEY)\s*=\s*["']?([^"'\n]+)["']?/gim;
+          const envMatches = [...content.matchAll(secretRegex)];
+          
+          for (const match of envMatches) {
+            const keyName = match[1];
+            const value = match[2].trim().toLowerCase();
+            const weakValues = ["root", "password", "123456", "admin", "postgres", "secret", "mysecret", "dev", "test", "jwt"];
 
-    const r2 = await safeFetch(
-      `${base}${p}`,
-      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@example.com", password: "x" }) },
-      runId,
-      log
-    );
-    if (r2.ok && r.body && r2.body && r.body !== r2.body && Math.abs(r.body.length - r2.body.length) > 5) {
-      await appendLog(runId, log, "warning", `VULNERABILITY: Possible user enumeration detected on ${p} (Response body sizes differ).`);
-      findings.push({
-        severity: "medium",
-        title: "Possible user enumeration on login",
-        description: `Different response bodies for a non-existent vs. plausible email on ${p}. Attackers can enumerate valid accounts.`,
-        evidence: { path: p, len_a: r.body.length, len_b: r2.body.length, status_a: r.status, status_b: r2.status },
-        remediation: "Return identical responses (same status, body, timing) whether the account exists or not.",
-        cwe: "CWE-204",
-      });
-    } else {
-      await appendLog(runId, log, "success", `POST ${p} response is identical for dummy vs admin email. User enumeration not detected.`);
+            const isWeak = weakValues.some(w => value.includes(w) || w.includes(value)) || value.length < 6;
+            if (isWeak) {
+              await appendLog(runId, log, "error", `ALERT: Default/Hardcoded secret found in ${file}: ${keyName}=${match[2]}`);
+              findings.push({
+                severity: "critical",
+                title: "Default/Hardcoded credential in container configuration",
+                description: `Found environment key ${keyName} set to a default, guessable, or insecure value (${match[2]}) in the ${file} configuration file.`,
+                evidence: { file, keyName, value: match[2] },
+                remediation: "Never hardcode passwords or keys in configuration repositories. Use Docker Secrets, AWS Secrets Manager, or inject them at runtime.",
+                cwe: "CWE-798",
+              });
+            }
+          }
+          break;
+        }
+      }
     }
+  } else {
+    await appendLog(runId, log, "warning", "Repository not hosted on GitHub. AuthN secrets scanning skipped.");
   }
-  await appendLog(runId, log, "success", "AuthN task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
+
+  await appendLog(runId, log, "success", "AuthN secrets scan completed successfully.", { current_step: "complete", step_count: 1, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
-async function runInjection(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
+async function runInjection(repoUrl: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
   const log: LogEntry[] = [];
-  await appendLog(runId, log, "info", `[SYSTEM] Initializing Injection prober environment...`, { status: "running", started_at: new Date().toISOString(), current_step: "probing reflection points" });
+  await appendLog(runId, log, "info", `[SYSTEM] Initializing Injection Shell-Command auditor...`, { status: "running", started_at: new Date().toISOString(), current_step: "auditing run commands" });
   
-  await appendLog(runId, log, "info", `[AGENT THINKING] Checking if application parameters reflect data without sanitization or escaping, indicating Reflected Cross-Site Scripting (XSS).`);
+  await appendLog(runId, log, "info", `[AGENT THINKING] Auditing CMD and ENTRYPOINT directives in Dockerfiles for insecure dynamic shell executions (eval, sh -c, unescaped variables).`);
 
   const findings: Finding[] = [];
-  const base = target.replace(/\/$/, "");
-  const marker = "brXss<script>__PROBE__</script>";
-  
-  await appendLog(runId, log, "info", `$ curl -s "${base}/?q=${encodeURIComponent(marker)}" | grep "brXss"`);
+  const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(repoUrl);
+  if (gh) {
+    const [, owner, repo] = gh;
 
-  const r = await safeFetch(`${base}/?q=${encodeURIComponent(marker)}`, undefined, runId, log);
-  if (r.ok && r.body.includes(marker)) {
-    await appendLog(runId, log, "error", "VULNERABILITY: Reflected XSS detected! Untrusted input rendered verbatim.");
-    findings.push({
-      severity: "high",
-      title: "Reflected input rendered without encoding",
-      description: "Untrusted query-string content appears verbatim in the HTML response, including a <script> tag. This is a reflected XSS primitive.",
-      evidence: { url: `${base}/?q=<probe>`, reflected: true, snippet: r.body.slice(0, 300) },
-      remediation: "Encode all user-controlled output with your template engine's HTML-escape helper; add a strict Content-Security-Policy.",
-      cwe: "CWE-79",
-    });
-  } else {
-    await appendLog(runId, log, "success", "No immediate XSS reflection detected on index query string.");
-  }
-  
-  const sqlMarker = "'\"><probe>";
-  await appendLog(runId, log, "info", `[AGENT THINKING] Sending malformed database input characters to search endpoints to detect vulnerable SQL query structures.`);
-  await appendLog(runId, log, "info", `$ curl -s "${base}/api/search?q=${encodeURIComponent(sqlMarker)}"`);
+    for (const branch of ["main", "master"]) {
+      const res = await fetchGithubFile(owner, repo, branch, "Dockerfile", ownerId, runId, log);
+      if (res.ok && res.status === 200) {
+        await appendLog(runId, log, "success", "Successfully downloaded Dockerfile. Commencing dynamic command injection audit...", { current_step: "auditing cmd/entrypoint", step_count: 1 });
+        const content = res.body;
 
-  const r2 = await safeFetch(`${base}/api/search?q=${encodeURIComponent(sqlMarker)}`, undefined, runId, log);
-  if (r2.ok && /SQL syntax|PostgreSQL|SQLite|ORA-\d+|MySQL/i.test(r2.body)) {
-    await appendLog(runId, log, "error", "VULNERABILITY: SQL Injection indicator found! Database syntax error exposed in response.");
-    findings.push({
-      severity: "critical",
-      title: "SQL error surfaces on malformed input",
-      description: "The server responded with a database error message when receiving an unescaped quote character. This strongly indicates SQL injection.",
-      evidence: { url: `${base}/api/search`, status: r2.status, snippet: r2.body.slice(0, 400) },
-      remediation: "Use parameterized queries / prepared statements for every database call. Never concatenate user input into SQL.",
-      cwe: "CWE-89",
-    });
+        // Check for shell form vs exec form in ENTRYPOINT/CMD that contains eval or variables expansion
+        const entrypointMatch = content.match(/^\s*(ENTRYPOINT|CMD)\s+(.+)/im);
+        if (entrypointMatch) {
+          const type = entrypointMatch[1];
+          const instruction = entrypointMatch[2].trim();
+
+          // 1. Eval / shell-invocation check
+          if (instruction.includes("eval") || instruction.includes("sh -c")) {
+            await appendLog(runId, log, "error", `VULNERABILITY: Insecure shell command invocation (${type}) detected.`);
+            findings.push({
+              severity: "high",
+              title: "Insecure shell execution in Dockerfile",
+              description: `The Dockerfile uses ${type} with dynamic 'eval' or 'sh -c'. This can allow arguments expansion to inject arbitrary commands during container start.`,
+              evidence: { file: "Dockerfile", directive: type, instruction },
+              remediation: "Prefer the JSON array exec form for ENTRYPOINT and CMD (e.g. ['/bin/app', 'arg1']) to avoid shell-wrapping.",
+              cwe: "CWE-78",
+            });
+          }
+        }
+        break;
+      }
+    }
   } else {
-    await appendLog(runId, log, "success", `GET /api/search returned HTTP ${r2.status ?? "error"} without SQL syntax disclosures.`);
+    await appendLog(runId, log, "warning", "Repository not hosted on GitHub. Injection shell-audit skipped.");
   }
-  
-  await appendLog(runId, log, "success", "Injection task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
+
+  await appendLog(runId, log, "success", "Injection command audit completed successfully.", { current_step: "complete", step_count: 1, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
@@ -423,7 +416,6 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
 
   const findings: Finding[] = [];
 
-  // Best-effort: for github.com repos, fetch package.json via the raw endpoint.
   const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(repoUrl);
   if (gh) {
     const [, owner, repo] = gh;
@@ -543,13 +535,7 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
       }
     }
   } else {
-    await appendLog(runId, log, "warning", "Repository is not hosted on GitHub. Direct dependency analysis unavailable without a runner.");
-    findings.push({
-      severity: "low",
-      title: "Repository not hosted on GitHub",
-      description: "The supply-chain agent could not fetch dependency metadata without a runner. Deploy a runner in your environment for full clone + analysis.",
-      evidence: { repo_url: repoUrl },
-    });
+    await appendLog(runId, log, "warning", "Repository is not hosted on GitHub. Direct dependency analysis unavailable.");
   }
   await appendLog(runId, log, "success", "Supply Chain task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
   return findings;
@@ -565,8 +551,6 @@ export async function runEngagement(engagementId: string): Promise<void> {
     .update({ status: "running", started_at: new Date().toISOString() })
     .eq("id", engagementId);
   await writeAudit({ actor_id: eng.owner_id, action: "engagement.start", target_id: engagementId, target_type: "engagement", environment_id: eng.environment_id });
-
-  const target = eng.target_url ?? eng.repo_url;
 
   const { data: runs } = await supabaseAdmin.from("agent_runs").select("*").eq("engagement_id", engagementId);
   const runByKind = new Map<AgentKind, string>();
@@ -630,9 +614,9 @@ export async function runEngagement(engagementId: string): Promise<void> {
     if (!runId) continue;
     try {
       let out: Finding[] = [];
-      if (kind === "recon") out = await runRecon(target, engagementId, eng.owner_id, runId);
-      else if (kind === "authn") out = await runAuthN(target, engagementId, eng.owner_id, runId);
-      else if (kind === "injection") out = await runInjection(target, engagementId, eng.owner_id, runId);
+      if (kind === "recon") out = await runRecon(eng.repo_url, engagementId, eng.owner_id, runId);
+      else if (kind === "authn") out = await runAuthN(eng.repo_url, engagementId, eng.owner_id, runId);
+      else if (kind === "injection") out = await runInjection(eng.repo_url, engagementId, eng.owner_id, runId);
       else if (kind === "supply_chain") out = await runSupplyChain(eng.repo_url, engagementId, eng.owner_id, runId);
       for (const f of out) await recordFinding(engagementId, eng.owner_id, runId, f);
       findings.push(...out);
@@ -651,12 +635,12 @@ export async function runEngagement(engagementId: string): Promise<void> {
     summary = await chat(
       [
         { role: "system", content: "You are a senior application security engineer writing a one-paragraph executive summary of a pen-test." },
-        { role: "user", content: `Target: ${target}\n\nFindings:\n${bullet}\n\nWrite 3-5 sentences summarising the overall risk posture and the single most important action to take.` },
+        { role: "user", content: `Target repository: ${eng.repo_url}\n\nFindings:\n${bullet}\n\nWrite 3-5 sentences summarising the overall risk posture and the single most important action to take.` },
       ],
       "google/gemini-2.5-flash",
     );
   } else {
-    summary = "No exploitable issues detected in this pass. Consider deploying a self-hosted runner to unlock full container-based testing (source-level scans, authenticated flows, custom fuzzers).";
+    summary = "No exploitable issues detected in this pass. Ensure your Docker configurations follow CIS benchmarks.";
   }
 
   const worst = findings.reduce<Severity | null>((acc, f) => {

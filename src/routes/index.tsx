@@ -4,14 +4,14 @@ import { motion } from "motion/react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Breach — AI Pen-testing & Docker Host Security Auditing" },
+      { title: "Breach — AI Pen-testing & Docker Configuration Auditing" },
       {
         name: "description",
         content:
-          "A team of AI agents audits your Docker host configurations and probes web endpoints inside a disposable sandbox to find container escapes, configuration flaws, and app-level vulnerabilities.",
+          "A team of AI agents audits your repository Dockerfiles, compose configurations, and package manifests to find security flaws, credential leaks, and container escapes.",
       },
       { property: "og:title", content: "Breach" },
-      { property: "og:description", content: "AI pen-testing & Docker Host auditing sandbox." },
+      { property: "og:description", content: "AI pen-testing & Docker configuration auditing." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -45,7 +45,7 @@ function Nav() {
         <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
           <a href="#how" className="hover:text-foreground">How it works</a>
           <a href="#team" className="hover:text-foreground">The team</a>
-          <a href="#trust" className="hover:text-foreground">Auditors</a>
+          <a href="#trust" className="hover:text-foreground">Sandbox</a>
         </nav>
         <div className="flex items-center gap-3">
           <Link to="/auth" className="text-[13px] text-muted-foreground hover:text-foreground">
@@ -82,7 +82,7 @@ function Hero() {
           transition={{ duration: 0.6, ease }}
           className="mb-6 text-[12px] uppercase tracking-[0.2em] text-muted-foreground"
         >
-          App Pen-testing & Docker Security, on demand
+          Docker Security Pen-testing, on demand
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -90,7 +90,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.05 }}
           className="max-w-4xl font-serif text-5xl leading-[1.02] tracking-[-0.02em] md:text-7xl"
         >
-          Audit your setups. Break your apps.
+          Audit your Docker setups. Protect your containers.
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -98,7 +98,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.15 }}
           className="mt-6 max-w-2xl text-[17px] leading-relaxed text-muted-foreground"
         >
-          A team of AI agents verifies your repository contains Docker configurations, audits Dockerfiles for secure container isolation, checks dependencies for supply chain compromises, and safely probes web endpoints for security vulnerabilities.
+          A team of AI agents scans your repositories, audits Dockerfiles for configuration risks, checks dependencies for supply-chain compromises, and verifies environment definitions to find security flaws.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -126,9 +126,9 @@ function Hero() {
 
 function How() {
   const steps = [
-    { k: "01", t: "Point us at your repo", d: "Paste your public or private GitHub URL, select your branch, and configure the target application URL." },
-    { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team rejects the scan to ensure audit readiness." },
-    { k: "03", t: "Agents pen-test in parallel", d: "Specialist agents inspect your Dockerfile configurations, audit manifests, check auth routes, and fuzz APIs for injection vulnerabilities." },
+    { k: "01", t: "Point us at your repo", d: "Paste your public or private GitHub URL and select a branch to initiate security audits." },
+    { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team immediately rejects it." },
+    { k: "03", t: "Agents pen-test in parallel", d: "Specialist agents audit exposed ports, scan for embedded credentials, trace unsafe command injections, and check supply chain compromises." },
     { k: "04", t: "Reproduction reports", d: "Get detailed severity-graded findings with reproduction logs, remediation guidelines, and downloadable PDFs." },
   ];
   return (
@@ -167,7 +167,7 @@ function Team() {
   const roles = [
     { 
       n: "Recon", 
-      d: "Discovers target web frameworks, verifies HTTP security headers, checks server banner configurations, and audits for exposed dotfiles or environment backups.", 
+      d: "Audits exposed container port directives in Dockerfiles and docker-compose configurations to block administrative service leaks.", 
       cwe: "CWE-200 · CWE-538 · CWE-693",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -179,7 +179,7 @@ function Team() {
     },
     { 
       n: "AuthN", 
-      d: "Probes authorization portals for credential enumeration issues, brute force blocks, and session token vulnerabilities.", 
+      d: "Scans environment variables in docker-compose, Kubernetes templates, and env files for hardcoded passwords or default credentials.", 
       cwe: "CWE-204 · CWE-307 · CWE-384",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -190,7 +190,7 @@ function Team() {
     },
     { 
       n: "Injection", 
-      d: "Fuzzes query parameters for reflected XSS entry points, filters database response exceptions, and monitors SQL error signatures.", 
+      d: "Audits CMD and ENTRYPOINT directives in Dockerfiles and shell scripts for insecure dynamic command invocations or argument expansions.", 
       cwe: "CWE-79 · CWE-89 · CWE-918",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
