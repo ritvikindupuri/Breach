@@ -169,6 +169,44 @@ async function updateRun(id: string, patch: Record<string, unknown>) {
   await supabaseAdmin.from("agent_runs").update(patch as any).eq("id", id);
 }
 
+// Helper to fetch files from GitHub (supports private repositories via user's Supabase provider token)
+async function fetchGithubFile(
+  owner: string,
+  repo: string,
+  branch: string,
+  path: string,
+  ownerId: string,
+  runId?: string,
+  log?: LogEntry[]
+): Promise<{ ok: boolean; status: number; body: string; error?: string }> {
+  let token: string | undefined = undefined;
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(ownerId);
+    token = (user?.app_metadata as any)?.provider_token || (user?.user_metadata as any)?.provider_token;
+  } catch (e) {
+    console.error("Failed to fetch user auth metadata for GitHub token:", e);
+  }
+
+  const apiHeaders: Record<string, string> = {
+    "Accept": "application/vnd.github.v3.raw",
+    "User-Agent": "Breach-App-Scanner"
+  };
+  if (token) {
+    apiHeaders["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Attempt authenticated GitHub contents API first
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+  const res = await safeFetch(apiUrl, { headers: apiHeaders }, runId, log);
+  if (res.ok && res.status === 200) {
+    return res;
+  }
+
+  // Fallback to public raw github url if contents API fails or token is missing
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  return safeFetch(rawUrl, undefined, runId, log);
+}
+
 async function recordFinding(
   engagementId: string,
   ownerId: string,
@@ -392,10 +430,9 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
     
     // 1. Audit standard package.json
     for (const branch of ["main", "master"]) {
-      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`;
-      await appendLog(runId, log, "info", `$ curl -s "${url}"`);
+      await appendLog(runId, log, "info", `Fetching package.json dependency manifests...`);
 
-      const r = await safeFetch(url, undefined, runId, log);
+      const r = await fetchGithubFile(owner, repo, branch, "package.json", ownerId, runId, log);
       if (r.ok && r.status === 200 && r.body.trim().startsWith("{")) {
         await appendLog(runId, log, "success", "Successfully downloaded package.json. Parsing dependencies...", { current_step: "parsing dependencies", step_count: 1 });
         try {
@@ -445,10 +482,8 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
 
     // 2. Audit Dockerfile configurations
     for (const branch of ["main", "master"]) {
-      const dockerfileUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/Dockerfile`;
       await appendLog(runId, log, "info", `[AGENT THINKING] Auditing Dockerfile configuration instructions for container configuration security controls.`);
-      await appendLog(runId, log, "info", `$ curl -s "${dockerfileUrl}"`);
-      const dfRes = await safeFetch(dockerfileUrl, undefined, runId, log);
+      const dfRes = await fetchGithubFile(owner, repo, branch, "Dockerfile", ownerId, runId, log);
       if (dfRes.ok && dfRes.status === 200 && dfRes.body.length > 5) {
         await appendLog(runId, log, "success", "Successfully downloaded Dockerfile. Commencing static configuration audit...", { current_step: "auditing dockerfile" });
         const content = dfRes.body;
@@ -546,10 +581,8 @@ export async function runEngagement(engagementId: string): Promise<void> {
     for (const branch of ["main", "master"]) {
       const paths = ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "docker/Dockerfile"];
       for (const p of paths) {
-        const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${p}`;
-        // Standard HEAD probe to check if file exists
-        const res = await fetch(url, { method: "HEAD" });
-        if (res.status === 200) {
+        const res = await fetchGithubFile(owner, repo, branch, p, eng.owner_id);
+        if (res.ok && res.status === 200) {
           hasDocker = true;
           break;
         }

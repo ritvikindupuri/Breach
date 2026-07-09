@@ -82,7 +82,7 @@ function Hero() {
           transition={{ duration: 0.6, ease }}
           className="mb-6 text-[12px] uppercase tracking-[0.2em] text-muted-foreground"
         >
-          Docker App Pen-testing, on demand
+          App Pen-testing & Docker Security, on demand
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -90,7 +90,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.05 }}
           className="max-w-4xl font-serif text-5xl leading-[1.02] tracking-[-0.02em] md:text-7xl"
         >
-          Audit your Docker setups. Break your apps.
+          Audit your setups. Break your apps.
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -126,9 +126,9 @@ function Hero() {
 
 function How() {
   const steps = [
-    { k: "01", t: "Point us at your repo", d: "Paste your GitHub URL, select your branch, and configure the target application URL." },
-    { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team rejects it." },
-    { k: "03", t: "Agents audit in parallel", d: "Specialist agents inspect your Dockerfile configurations, audit manifests, check auth routes, and fuzz APIs." },
+    { k: "01", t: "Point us at your repo", d: "Paste your public or private GitHub URL, select your branch, and configure the target application URL." },
+    { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team rejects the scan to ensure audit readiness." },
+    { k: "03", t: "Agents pen-test in parallel", d: "Specialist agents inspect your Dockerfile configurations, audit manifests, check auth routes, and fuzz APIs for injection vulnerabilities." },
     { k: "04", t: "Reproduction reports", d: "Get detailed severity-graded findings with reproduction logs, remediation guidelines, and downloadable PDFs." },
   ];
   return (
