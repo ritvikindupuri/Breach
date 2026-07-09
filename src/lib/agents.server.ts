@@ -56,20 +56,109 @@ async function chat(messages: Array<{ role: string; content: string }>, model = 
   }
 }
 
-async function safeFetch(url: string, init?: RequestInit, timeoutMs = 8000) {
+interface LogEntry {
+  timestamp: string;
+  type: "info" | "request" | "success" | "warning" | "error";
+  message: string;
+  network_request?: {
+    method: string;
+    url: string;
+    request_headers: Record<string, string>;
+    request_body: string;
+    status: number;
+    response_headers: Record<string, string>;
+    response_body: string;
+    duration_ms: number;
+  };
+}
+
+async function appendLog(
+  runId: string,
+  log: LogEntry[],
+  type: LogEntry["type"],
+  message: string,
+  extra: { network_request?: LogEntry["network_request"]; [key: string]: unknown } = {}
+) {
+  const { network_request, ...extraPatch } = extra;
+  const entry: LogEntry = {
+    timestamp: new Date().toISOString(),
+    type,
+    message,
+    network_request,
+  };
+  log.push(entry);
+  await updateRun(runId, {
+    transcript: log as any,
+    ...extraPatch,
+  });
+}
+
+async function safeFetch(
+  url: string,
+  init?: RequestInit,
+  runId?: string,
+  log?: LogEntry[],
+  timeoutMs = 8000
+) {
+  const start = Date.now();
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  
+  const method = init?.method || "GET";
+  const requestHeaders = init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {};
+  const requestBody = init?.body ? String(init.body) : "";
+
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal, redirect: "manual" });
     const text = await res.text().catch(() => "");
-    return {
+    const duration = Date.now() - start;
+    
+    const responseHeaders = Object.fromEntries(res.headers.entries());
+    const bodyPreview = text.slice(0, 4000);
+
+    const result = {
       ok: true as const,
       status: res.status,
-      headers: Object.fromEntries(res.headers.entries()),
-      body: text.slice(0, 4000),
+      headers: responseHeaders,
+      body: bodyPreview,
     };
+
+    if (runId && log) {
+      await appendLog(runId, log, "request", `HTTP ${method} ${url} -> ${res.status} (${duration}ms)`, {
+        network_request: {
+          method,
+          url,
+          request_headers: requestHeaders,
+          request_body: requestBody,
+          status: res.status,
+          response_headers: responseHeaders,
+          response_body: bodyPreview,
+          duration_ms: duration,
+        }
+      });
+    }
+
+    return result;
   } catch (e: unknown) {
-    return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+    const duration = Date.now() - start;
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    
+    if (runId && log) {
+      await appendLog(runId, log, "error", `HTTP ${method} ${url} failed: ${errorMessage} (${duration}ms)`, {
+        network_request: {
+          method,
+          url,
+          request_headers: requestHeaders,
+          request_body: requestBody,
+          status: 0,
+          response_headers: {},
+          response_body: `Error: ${errorMessage}`,
+          duration_ms: duration,
+        }
+      });
+    }
+
+    return { ok: false as const, error: errorMessage };
   } finally {
     clearTimeout(t);
   }
@@ -99,31 +188,6 @@ async function recordFinding(
   });
 }
 
-interface LogEntry {
-  timestamp: string;
-  type: "info" | "request" | "success" | "warning" | "error";
-  message: string;
-}
-
-async function appendLog(
-  runId: string,
-  log: LogEntry[],
-  type: LogEntry["type"],
-  message: string,
-  extraPatch: Record<string, unknown> = {}
-) {
-  const entry: LogEntry = {
-    timestamp: new Date().toISOString(),
-    type,
-    message,
-  };
-  log.push(entry);
-  await updateRun(runId, {
-    transcript: log as any,
-    ...extraPatch,
-  });
-}
-
 // --- Specialist agents -------------------------------------------------
 
 async function runRecon(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
@@ -131,8 +195,7 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
   await appendLog(runId, log, "info", `Initializing Recon sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
   
   const findings: Finding[] = [];
-  await appendLog(runId, log, "request", `GET ${target} - Fetching landing page...`);
-  const root = await safeFetch(target);
+  const root = await safeFetch(target, undefined, runId, log);
   
   if (root.ok) {
     await appendLog(runId, log, "success", `GET ${target} returned HTTP ${root.status}. Reading headers...`, { current_step: "reading response headers", step_count: 1 });
@@ -180,8 +243,7 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
   const suspicious = [".env", ".git/config", ".git/HEAD", "backup.sql", "package.json", ".DS_Store"];
   const base = target.replace(/\/$/, "");
   for (const p of suspicious) {
-    await appendLog(runId, log, "request", `GET ${base}/${p}`);
-    const r = await safeFetch(`${base}/${p}`);
+    const r = await safeFetch(`${base}/${p}`, undefined, runId, log);
     if (r.ok && r.status === 200 && r.body.length > 5) {
       await appendLog(runId, log, "error", `ALERT: Exposed sensitive file found at /${p}! (HTTP 200)`);
       findings.push({
@@ -192,8 +254,6 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
         remediation: "Block dotfiles, VCS metadata, and backups at the web server / CDN layer.",
         cwe: "CWE-538",
       });
-    } else {
-      await appendLog(runId, log, "info", `GET /${p} returned HTTP ${r.status ?? "failed"}`);
     }
   }
 
@@ -209,19 +269,24 @@ async function runAuthN(target: string, engagementId: string, ownerId: string, r
   const base = target.replace(/\/$/, "");
   const paths = ["/login", "/api/login", "/auth", "/api/auth/login", "/signin"];
   for (const p of paths) {
-    await appendLog(runId, log, "request", `POST ${base}${p} (Probing login endpoint with dummy credentials)...`);
-    const r = await safeFetch(`${base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "does-not-exist@example.invalid", password: "x" }) });
-    if (!r.ok) {
-      await appendLog(runId, log, "warning", `POST ${p} failed to resolve: ${r.error}`);
-      continue;
-    }
+    const r = await safeFetch(
+      `${base}${p}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "does-not-exist@example.invalid", password: "x" }) },
+      runId,
+      log
+    );
+    if (!r.ok) continue;
     
     await appendLog(runId, log, "info", `POST ${p} returned HTTP ${r.status}`, { current_step: `probing ${p}`, step_count: 1 });
     if (r.status === 200 || r.status === 429) continue;
     
     // Check for user enumeration: try a second request with different email
-    await appendLog(runId, log, "request", `POST ${base}${p} (Probing with plausible admin email)...`);
-    const r2 = await safeFetch(`${base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@example.com", password: "x" }) });
+    const r2 = await safeFetch(
+      `${base}${p}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@example.com", password: "x" }) },
+      runId,
+      log
+    );
     if (r2.ok && r.body && r2.body && r.body !== r2.body && Math.abs(r.body.length - r2.body.length) > 5) {
       await appendLog(runId, log, "warning", `VULNERABILITY: Possible user enumeration detected on ${p} (Response body sizes differ).`);
       findings.push({
@@ -248,8 +313,7 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
   const base = target.replace(/\/$/, "");
   const marker = "brXss<script>__PROBE__</script>";
   
-  await appendLog(runId, log, "request", `GET ${base}/?q=<script_payload> (Testing for Reflected XSS)...`);
-  const r = await safeFetch(`${base}/?q=${encodeURIComponent(marker)}`);
+  const r = await safeFetch(`${base}/?q=${encodeURIComponent(marker)}`, undefined, runId, log);
   if (r.ok && r.body.includes(marker)) {
     await appendLog(runId, log, "error", "VULNERABILITY: Reflected XSS detected! Untrusted input rendered verbatim.");
     findings.push({
@@ -265,8 +329,7 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
   }
   
   const sqlMarker = "'\"><probe>";
-  await appendLog(runId, log, "request", `GET ${base}/api/search?q=sql_payload (Testing for SQL Injection)...`);
-  const r2 = await safeFetch(`${base}/api/search?q=${encodeURIComponent(sqlMarker)}`);
+  const r2 = await safeFetch(`${base}/api/search?q=${encodeURIComponent(sqlMarker)}`, undefined, runId, log);
   if (r2.ok && /SQL syntax|PostgreSQL|SQLite|ORA-\d+|MySQL/i.test(r2.body)) {
     await appendLog(runId, log, "error", "VULNERABILITY: SQL Injection indicator found! Database syntax error exposed in response.");
     findings.push({
@@ -297,8 +360,7 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
     const [, owner, repo] = gh;
     for (const branch of ["main", "master"]) {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`;
-      await appendLog(runId, log, "request", `GET ${url} (Downloading package.json)...`);
-      const r = await safeFetch(url);
+      const r = await safeFetch(url, undefined, runId, log);
       if (r.ok && r.status === 200 && r.body.trim().startsWith("{")) {
         await appendLog(runId, log, "success", "Successfully downloaded package.json. Parsing dependencies...", { current_step: "parsing dependencies", step_count: 1 });
         try {
