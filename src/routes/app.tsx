@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/app")({
 
 function AppShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<"engagements" | "runners">("engagements");
   const [email, setEmail] = useState<string | null>(null);
@@ -33,6 +34,11 @@ function AppShell() {
   }, [navigate]);
 
   if (!ready) return <div className="min-h-screen bg-background" />;
+
+  const isExactApp = location.pathname === "/app" || location.pathname === "/app/";
+  if (!isExactApp) {
+    return <Outlet />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">

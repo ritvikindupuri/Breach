@@ -9,10 +9,18 @@ export const Route = createFileRoute("/app/engagements/$id")({
   component: EngagementDetail,
 });
 
+interface LogEntry {
+  timestamp: string;
+  type: "info" | "request" | "success" | "warning" | "error";
+  message: string;
+}
+
 function EngagementDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) navigate({ to: "/auth", replace: true });
@@ -30,8 +38,17 @@ function EngagementDetail() {
     enabled: ready,
   });
 
+  const { engagement: e, agent_runs = [], findings = [] } = data || {};
+
+  useEffect(() => {
+    if (agent_runs && agent_runs.length > 0 && !selectedRunId) {
+      setSelectedRunId(agent_runs[0].id);
+    }
+  }, [agent_runs, selectedRunId]);
+
   if (!ready || !data) return <div className="min-h-screen bg-background" />;
-  const { engagement: e, agent_runs, findings } = data;
+
+  const selectedRun = agent_runs.find((r) => r.id === selectedRunId);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -69,32 +86,46 @@ function EngagementDetail() {
           </div>
         )}
 
-        <section className="mt-10">
-          <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">AGENT TEAM</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {agent_runs.map((r) => (
-              <motion.div
-                key={r.id}
-                layout
-                className="rounded-xl border border-black/10 p-5"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-[13px] font-medium tracking-tight">{formatKind(r.kind)}</div>
-                  <RunPill status={r.status} />
-                </div>
-                <div className="mt-2 text-[12px] text-muted-foreground">
-                  {r.current_step ?? (r.status === "pending" ? "waiting for launch…" : "")}
-                </div>
-                <div className="mt-3 h-1 overflow-hidden rounded-full bg-black/5">
-                  <div
-                    className="h-full bg-foreground/70 transition-all"
-                    style={{ width: `${Math.min(100, (r.step_count / 3) * 100)}%` }}
-                  />
-                </div>
-              </motion.div>
-            ))}
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {/* Left panel - Agent Team Grid */}
+          <div className="lg:col-span-1 space-y-4">
+            <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">AGENT TEAM</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              {agent_runs.map((r) => (
+                <motion.div
+                  key={r.id}
+                  layout
+                  onClick={() => setSelectedRunId(r.id)}
+                  className={`rounded-xl border p-5 cursor-pointer transition-all duration-200 ${
+                    selectedRunId === r.id
+                      ? "border-foreground ring-2 ring-foreground/10 bg-black/[.02]"
+                      : "border-black/10 hover:border-black/30 hover:bg-black/[0.005]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[13px] font-medium tracking-tight">{formatKind(r.kind)}</div>
+                    <RunPill status={r.status} />
+                  </div>
+                  <div className="mt-2 text-[12px] text-muted-foreground">
+                    {r.current_step ?? (r.status === "pending" ? "waiting for launch…" : "")}
+                  </div>
+                  <div className="mt-3 h-1 overflow-hidden rounded-full bg-black/5">
+                    <div
+                      className="h-full bg-foreground/70 transition-all"
+                      style={{ width: `${Math.min(100, (r.step_count / 3) * 100)}%` }}
+                    />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </section>
+
+          {/* Right panel - Real-time VM Console */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">LOCAL SANDBOX VM MONITOR</h2>
+            <AgentConsole run={selectedRun} />
+          </div>
+        </div>
 
         <section className="mt-12">
           <div className="flex items-baseline justify-between">
@@ -155,9 +186,98 @@ function EngagementDetail() {
   );
 }
 
+function AgentConsole({ run }: { run: any }) {
+  if (!run) return null;
+  const transcript = (run.transcript || []) as LogEntry[];
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+      {/* Console Header */}
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-3 w-3 items-center justify-center">
+            <span className={`h-2 w-2 rounded-full ${
+              run.status === "running" ? "bg-blue-500 animate-pulse" :
+              run.status === "complete" ? "bg-emerald-500" :
+              run.status === "failed" ? "bg-rose-500" : "bg-zinc-500"
+            }`} />
+          </span>
+          <span className="font-mono text-xs font-semibold text-zinc-300">
+            {run.kind.toUpperCase()}_AGENT_VM@sandbox
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+          <span>tty1</span>
+          <span>80x24</span>
+          <div className="flex gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+            <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+          </div>
+        </div>
+      </div>
+
+      {/* Terminal Body */}
+      <div className="h-[280px] overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-zinc-300 selection:bg-zinc-800 selection:text-white">
+        {transcript.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-zinc-500">
+            <p>Initializing virtual machine container...</p>
+            <p className="mt-1 text-[10px]">Logs will print in real-time as the agent interacts with the app.</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {transcript.map((log, idx) => {
+              const date = new Date(log.timestamp);
+              const timeStr = date.toLocaleTimeString([], { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
+              const colors: Record<string, string> = {
+                info: "text-zinc-500",
+                request: "text-indigo-400 font-medium",
+                success: "text-emerald-400",
+                warning: "text-amber-500 font-semibold",
+                error: "text-rose-500 font-bold",
+              };
+              const prefix: Record<string, string> = {
+                info: "[INFO]   ",
+                request: "[PROBE]  ",
+                success: "[SUCCESS]",
+                warning: "[WARNING]",
+                error: "[ALERT]  ",
+              };
+              return (
+                <div key={idx} className="flex items-start gap-3 hover:bg-zinc-900/40 py-0.5 px-1 rounded transition-colors">
+                  <span className="text-zinc-600 select-none">{timeStr}</span>
+                  <span className={colors[log.type] || "text-zinc-300"}>
+                    <span className="opacity-90 select-none mr-2 font-semibold">{prefix[log.type] || "[LOG]    "}</span>
+                    {log.message}
+                  </span>
+                </div>
+              );
+            })}
+            
+            {/* Blinking cursor */}
+            {run.status === "running" && (
+              <div className="flex items-center gap-1 text-blue-400 font-semibold mt-2 px-1">
+                <span>{run.kind.toLowerCase()}-agent@sandbox:~$</span>
+                <span className="inline-block h-3 w-1.5 bg-blue-400 animate-pulse" />
+              </div>
+            )}
+            
+            {run.status === "complete" && (
+              <div className="text-emerald-500 font-semibold mt-2 px-1">
+                <span>{run.kind.toLowerCase()}-agent@sandbox:~$ exit</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function formatKind(k: string) {
   return { recon: "Recon", authn: "AuthN", injection: "Injection", supply_chain: "Supply chain" }[k] ?? k;
 }
+
 function StatusBig({ status }: { status: string }) {
   const color: Record<string, string> = {
     queued: "text-muted-foreground",
@@ -169,6 +289,7 @@ function StatusBig({ status }: { status: string }) {
   };
   return <div className={`text-[13px] font-medium uppercase tracking-[0.15em] ${color[status]}`}>{status}</div>;
 }
+
 function RunPill({ status }: { status: string }) {
   const map: Record<string, string> = {
     pending: "bg-black/[.05] text-muted-foreground",
@@ -183,6 +304,7 @@ function RunPill({ status }: { status: string }) {
     </span>
   );
 }
+
 function SeverityDot({ s }: { s: string }) {
   const c = { low: "bg-slate-400", medium: "bg-amber-500", high: "bg-orange-600", critical: "bg-red-600" }[s] ?? "bg-slate-400";
   return <span className={`h-2 w-2 rounded-full ${c}`} />;

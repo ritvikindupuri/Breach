@@ -8,6 +8,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { writeAudit } from "./audit.server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type AgentKind = "recon" | "authn" | "injection" | "supply_chain";
 type Severity = "low" | "medium" | "high" | "critical";
@@ -21,21 +22,36 @@ interface Finding {
   cwe?: string;
 }
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-async function chat(messages: Array<{ role: string; content: string }>, model = "google/gemini-2.5-flash"): Promise<string> {
-  const key = process.env.LOVABLE_API_KEY;
+async function chat(messages: Array<{ role: string; content: string }>, model = "gemini-2.5-flash"): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
   if (!key) return "";
   try {
-    const res = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages }),
+    const genAI = new GoogleGenerativeAI(key);
+    
+    // Extract system instructions and format messages
+    const systemInstruction = messages.find((m) => m.role === "system")?.content;
+    const contents = messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+    // Normalize model name (Gemini SDK expects format like 'gemini-2.5-flash')
+    const normalizedModel = model.replace(/^google\//, "");
+
+    const aiModel = genAI.getGenerativeModel({
+      model: normalizedModel,
+      systemInstruction,
     });
-    if (!res.ok) return "";
-    const j = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    return j.choices?.[0]?.message?.content ?? "";
-  } catch {
+
+    const result = await aiModel.generateContent({
+      contents,
+    });
+
+    return result.response.text();
+  } catch (err) {
+    console.error("[Gemini SDK error]", err);
     return "";
   }
 }
@@ -83,15 +99,43 @@ async function recordFinding(
   });
 }
 
+interface LogEntry {
+  timestamp: string;
+  type: "info" | "request" | "success" | "warning" | "error";
+  message: string;
+}
+
+async function appendLog(
+  runId: string,
+  log: LogEntry[],
+  type: LogEntry["type"],
+  message: string,
+  extraPatch: Record<string, unknown> = {}
+) {
+  const entry: LogEntry = {
+    timestamp: new Date().toISOString(),
+    type,
+    message,
+  };
+  log.push(entry);
+  await updateRun(runId, {
+    transcript: log as any,
+    ...extraPatch,
+  });
+}
+
 // --- Specialist agents -------------------------------------------------
 
 async function runRecon(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
-  await updateRun(runId, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
+  const log: LogEntry[] = [];
+  await appendLog(runId, log, "info", `Initializing Recon sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "fingerprinting" });
+  
   const findings: Finding[] = [];
+  await appendLog(runId, log, "request", `GET ${target} - Fetching landing page...`);
   const root = await safeFetch(target);
-  await updateRun(runId, { current_step: "reading response headers", step_count: 1 });
-
+  
   if (root.ok) {
+    await appendLog(runId, log, "success", `GET ${target} returned HTTP ${root.status}. Reading headers...`, { current_step: "reading response headers", step_count: 1 });
     const h = root.headers;
     const missing: string[] = [];
     if (!h["strict-transport-security"]) missing.push("Strict-Transport-Security");
@@ -101,7 +145,9 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
     if (!h["x-content-type-options"]) missing.push("X-Content-Type-Options");
     if (!h["referrer-policy"]) missing.push("Referrer-Policy");
     if (!h["permissions-policy"]) missing.push("Permissions-Policy");
+    
     if (missing.length) {
+      await appendLog(runId, log, "warning", `VULNERABILITY: Missing security headers detected: ${missing.join(", ")}`);
       findings.push({
         severity: missing.length >= 4 ? "high" : "medium",
         title: `Missing security headers (${missing.length})`,
@@ -110,8 +156,12 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
         remediation: "Configure your web server / framework middleware to set the missing headers on every HTML response.",
         cwe: "CWE-693",
       });
+    } else {
+      await appendLog(runId, log, "success", "All standard security headers are present.");
     }
+    
     if (h["server"] || h["x-powered-by"]) {
+      await appendLog(runId, log, "warning", `Server signature leaked: ${h["server"] ?? ""} ${h["x-powered-by"] ?? ""}`);
       findings.push({
         severity: "low",
         title: "Server banner leaks stack details",
@@ -121,15 +171,19 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
         cwe: "CWE-200",
       });
     }
+  } else {
+    await appendLog(runId, log, "error", `Failed to fetch target landing page. Error: ${root.error}`);
   }
 
   // Probe common exposed paths
-  await updateRun(runId, { current_step: "probing exposed files", step_count: 2 });
+  await appendLog(runId, log, "info", "Beginning exposed files probe...", { current_step: "probing exposed files", step_count: 2 });
   const suspicious = [".env", ".git/config", ".git/HEAD", "backup.sql", "package.json", ".DS_Store"];
   const base = target.replace(/\/$/, "");
   for (const p of suspicious) {
+    await appendLog(runId, log, "request", `GET ${base}/${p}`);
     const r = await safeFetch(`${base}/${p}`);
     if (r.ok && r.status === 200 && r.body.length > 5) {
+      await appendLog(runId, log, "error", `ALERT: Exposed sensitive file found at /${p}! (HTTP 200)`);
       findings.push({
         severity: p === ".env" || p === "backup.sql" ? "critical" : "high",
         title: `Sensitive file exposed: /${p}`,
@@ -138,26 +192,38 @@ async function runRecon(target: string, engagementId: string, ownerId: string, r
         remediation: "Block dotfiles, VCS metadata, and backups at the web server / CDN layer.",
         cwe: "CWE-538",
       });
+    } else {
+      await appendLog(runId, log, "info", `GET /${p} returned HTTP ${r.status ?? "failed"}`);
     }
   }
 
-  await updateRun(runId, { current_step: "complete", step_count: 3, status: "complete", finished_at: new Date().toISOString() });
+  await appendLog(runId, log, "success", "Recon task completed successfully.", { current_step: "complete", step_count: 3, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
 async function runAuthN(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
-  await updateRun(runId, { status: "running", started_at: new Date().toISOString(), current_step: "locating login endpoints" });
+  const log: LogEntry[] = [];
+  await appendLog(runId, log, "info", `Initializing AuthN sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "locating login endpoints" });
+  
   const findings: Finding[] = [];
   const base = target.replace(/\/$/, "");
   const paths = ["/login", "/api/login", "/auth", "/api/auth/login", "/signin"];
   for (const p of paths) {
+    await appendLog(runId, log, "request", `POST ${base}${p} (Probing login endpoint with dummy credentials)...`);
     const r = await safeFetch(`${base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "does-not-exist@example.invalid", password: "x" }) });
-    if (!r.ok) continue;
-    await updateRun(runId, { current_step: `probing ${p}`, step_count: 1 });
+    if (!r.ok) {
+      await appendLog(runId, log, "warning", `POST ${p} failed to resolve: ${r.error}`);
+      continue;
+    }
+    
+    await appendLog(runId, log, "info", `POST ${p} returned HTTP ${r.status}`, { current_step: `probing ${p}`, step_count: 1 });
     if (r.status === 200 || r.status === 429) continue;
+    
     // Check for user enumeration: try a second request with different email
+    await appendLog(runId, log, "request", `POST ${base}${p} (Probing with plausible admin email)...`);
     const r2 = await safeFetch(`${base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@example.com", password: "x" }) });
     if (r2.ok && r.body && r2.body && r.body !== r2.body && Math.abs(r.body.length - r2.body.length) > 5) {
+      await appendLog(runId, log, "warning", `VULNERABILITY: Possible user enumeration detected on ${p} (Response body sizes differ).`);
       findings.push({
         severity: "medium",
         title: "Possible user enumeration on login",
@@ -166,19 +232,26 @@ async function runAuthN(target: string, engagementId: string, ownerId: string, r
         remediation: "Return identical responses (same status, body, timing) whether the account exists or not.",
         cwe: "CWE-204",
       });
+    } else {
+      await appendLog(runId, log, "success", `POST ${p} response is identical for dummy vs admin email. User enumeration not detected.`);
     }
   }
-  await updateRun(runId, { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
+  await appendLog(runId, log, "success", "AuthN task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
 async function runInjection(target: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
-  await updateRun(runId, { status: "running", started_at: new Date().toISOString(), current_step: "probing reflection points" });
+  const log: LogEntry[] = [];
+  await appendLog(runId, log, "info", `Initializing Injection sandbox for target: ${target}`, { status: "running", started_at: new Date().toISOString(), current_step: "probing reflection points" });
+  
   const findings: Finding[] = [];
   const base = target.replace(/\/$/, "");
   const marker = "brXss<script>__PROBE__</script>";
+  
+  await appendLog(runId, log, "request", `GET ${base}/?q=<script_payload> (Testing for Reflected XSS)...`);
   const r = await safeFetch(`${base}/?q=${encodeURIComponent(marker)}`);
   if (r.ok && r.body.includes(marker)) {
+    await appendLog(runId, log, "error", "VULNERABILITY: Reflected XSS detected! Untrusted input rendered verbatim.");
     findings.push({
       severity: "high",
       title: "Reflected input rendered without encoding",
@@ -187,10 +260,15 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
       remediation: "Encode all user-controlled output with your template engine's HTML-escape helper; add a strict Content-Security-Policy.",
       cwe: "CWE-79",
     });
+  } else {
+    await appendLog(runId, log, "success", "No immediate XSS reflection detected on index query string.");
   }
+  
   const sqlMarker = "'\"><probe>";
+  await appendLog(runId, log, "request", `GET ${base}/api/search?q=sql_payload (Testing for SQL Injection)...`);
   const r2 = await safeFetch(`${base}/api/search?q=${encodeURIComponent(sqlMarker)}`);
   if (r2.ok && /SQL syntax|PostgreSQL|SQLite|ORA-\d+|MySQL/i.test(r2.body)) {
+    await appendLog(runId, log, "error", "VULNERABILITY: SQL Injection indicator found! Database syntax error exposed in response.");
     findings.push({
       severity: "critical",
       title: "SQL error surfaces on malformed input",
@@ -199,13 +277,18 @@ async function runInjection(target: string, engagementId: string, ownerId: strin
       remediation: "Use parameterized queries / prepared statements for every database call. Never concatenate user input into SQL.",
       cwe: "CWE-89",
     });
+  } else {
+    await appendLog(runId, log, "success", `GET /api/search returned HTTP ${r2.status ?? "error"} without SQL syntax disclosures.`);
   }
-  await updateRun(runId, { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
+  
+  await appendLog(runId, log, "success", "Injection task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
 async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: string, runId: string): Promise<Finding[]> {
-  await updateRun(runId, { status: "running", started_at: new Date().toISOString(), current_step: "cloning repo metadata" });
+  const log: LogEntry[] = [];
+  await appendLog(runId, log, "info", `Initializing Supply Chain sandbox for repository: ${repoUrl}`, { status: "running", started_at: new Date().toISOString(), current_step: "cloning repo metadata" });
+  
   const findings: Finding[] = [];
 
   // Best-effort: for github.com repos, fetch package.json via the raw endpoint.
@@ -214,12 +297,15 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
     const [, owner, repo] = gh;
     for (const branch of ["main", "master"]) {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`;
+      await appendLog(runId, log, "request", `GET ${url} (Downloading package.json)...`);
       const r = await safeFetch(url);
       if (r.ok && r.status === 200 && r.body.trim().startsWith("{")) {
-        await updateRun(runId, { current_step: "parsing dependencies", step_count: 1 });
+        await appendLog(runId, log, "success", "Successfully downloaded package.json. Parsing dependencies...", { current_step: "parsing dependencies", step_count: 1 });
         try {
           const pkg = JSON.parse(r.body) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
           const all = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+          await appendLog(runId, log, "info", `Found ${Object.keys(all).length} total dependencies.`);
+          
           const knownBad: Record<string, string> = {
             "event-stream": "Historic supply-chain compromise (2018). Any pinned version is suspect.",
             "flatmap-stream": "Historic supply-chain compromise. Remove immediately.",
@@ -227,6 +313,7 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
           };
           for (const dep of Object.keys(all)) {
             if (knownBad[dep]) {
+              await appendLog(runId, log, "error", `ALERT: Compromised dependency found: ${dep} (${all[dep]})`);
               findings.push({
                 severity: "critical",
                 title: `Compromised dependency: ${dep}`,
@@ -238,6 +325,7 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
             }
           }
           if (Object.keys(all).length > 250) {
+            await appendLog(runId, log, "warning", `VULNERABILITY: Bloated dependency footprint (${Object.keys(all).length} packages). Increasing supply-chain attack surface.`);
             findings.push({
               severity: "low",
               title: "Large dependency footprint",
@@ -245,14 +333,17 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
               evidence: { count: Object.keys(all).length },
               remediation: "Audit with `npm ls`, remove unused packages, prefer well-maintained libraries over transitive deep trees.",
             });
+          } else {
+            await appendLog(runId, log, "success", "Dependency footprint size check passed.");
           }
         } catch {
-          /* noop */
+          await appendLog(runId, log, "error", "Failed to parse package.json as valid JSON.");
         }
         break;
       }
     }
   } else {
+    await appendLog(runId, log, "warning", "Repository is not hosted on GitHub. Direct dependency analysis unavailable without a runner.");
     findings.push({
       severity: "low",
       title: "Repository not hosted on GitHub",
@@ -260,7 +351,7 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
       evidence: { repo_url: repoUrl },
     });
   }
-  await updateRun(runId, { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
+  await appendLog(runId, log, "success", "Supply Chain task completed successfully.", { current_step: "complete", step_count: 2, status: "complete", finished_at: new Date().toISOString() });
   return findings;
 }
 
