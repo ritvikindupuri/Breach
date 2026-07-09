@@ -82,7 +82,7 @@ function Hero() {
           transition={{ duration: 0.6, ease }}
           className="mb-6 text-[12px] uppercase tracking-[0.2em] text-muted-foreground"
         >
-          Docker Host Auditing & Pen-testing, on demand
+          Docker App Pen-testing, on demand
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -90,7 +90,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.05 }}
           className="max-w-4xl font-serif text-5xl leading-[1.02] tracking-[-0.02em] md:text-7xl"
         >
-          Audit your host. Break your apps.
+          Audit your Docker setups. Break your apps.
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -98,7 +98,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.15 }}
           className="mt-6 max-w-2xl text-[17px] leading-relaxed text-muted-foreground"
         >
-          A team of AI agents audits your local Docker socket configuration, parses Dockerfiles for secure isolation, scans images for package CVEs, and safely probes web endpoints for security risks.
+          A team of AI agents verifies your repository contains Docker configurations, audits Dockerfiles for secure container isolation, checks dependencies for supply chain compromises, and safely probes web endpoints for security vulnerabilities.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -110,7 +110,7 @@ function Hero() {
             to="/auth"
             className="rounded-full bg-foreground px-6 py-3 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
           >
-            Start auditing now
+            Start an engagement
           </Link>
           <a
             href="#how"
@@ -167,7 +167,7 @@ function Team() {
   const roles = [
     { 
       n: "Recon", 
-      d: "Fingerprints the host daemon, verifies security headers, checks Server banners, and audits for exposed dotfiles or environment backups.", 
+      d: "Discovers target web frameworks, verifies HTTP security headers, checks server banner configurations, and audits for exposed dotfiles or environment backups.", 
       cwe: "CWE-200 · CWE-538 · CWE-693",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -202,7 +202,7 @@ function Team() {
     },
     { 
       n: "Supply chain", 
-      d: "Parses package manifests for compromised NPM packages, checks image dependencies, and audits total package bloat vulnerability.", 
+      d: "Parses package manifests for compromised NPM packages, checks dependency footprints, and audits Dockerfile instructions for non-root USER directives, unpinned base images, and embedded secrets.", 
       cwe: "CWE-506 · CWE-829",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -217,9 +217,9 @@ function Team() {
     <section id="team" className="border-t border-black/5">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
         <div className="max-w-2xl">
-          <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Four Specialists. One Auditor Agent.</h2>
+          <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Four Specialists. One Sandbox Engagement.</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
-            Each agent has a dedicated security domain. They run in parallel during host checkups, logging active network events and documenting proof directly.
+            Each agent has a dedicated security domain. They run in parallel during sandbox engagements, logging active network events and documenting proof directly.
           </p>
         </div>
         <div className="mt-14 grid gap-6 md:grid-cols-2">
