@@ -10,8 +10,8 @@ export const Route = createFileRoute("/")({
         content:
           "A team of AI agents audits your repository Dockerfiles, compose configurations, and package manifests to find configuration flaws, credential leaks, and container vulnerabilities.",
       },
-      { property: "og:title", content: "Breach" },
-      { property: "og:description", content: "AI security auditing for Docker configurations." },
+      { property: "og:title", content: "Breach — AI Security Auditing for Docker Configurations" },
+      { property: "og:description", content: "A team of AI agents audits your repository Dockerfiles, compose configurations, and package manifests to find configuration flaws, credential leaks, and container vulnerabilities." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
