@@ -4,14 +4,14 @@ import { motion } from "motion/react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Breach — AI Pen-testing & Docker Configuration Auditing" },
+      { title: "Breach — AI Security Auditing for Docker Configurations" },
       {
         name: "description",
         content:
-          "A team of AI agents audits your repository Dockerfiles, compose configurations, and package manifests to find security flaws, credential leaks, and container escapes.",
+          "A team of AI agents audits your repository Dockerfiles, compose configurations, and package manifests to find configuration flaws, credential leaks, and container vulnerabilities.",
       },
       { property: "og:title", content: "Breach" },
-      { property: "og:description", content: "AI pen-testing & Docker configuration auditing." },
+      { property: "og:description", content: "AI security auditing for Docker configurations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -45,7 +45,7 @@ function Nav() {
         <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
           <a href="#how" className="hover:text-foreground">How it works</a>
           <a href="#team" className="hover:text-foreground">The team</a>
-          <a href="#trust" className="hover:text-foreground">Sandbox</a>
+          <a href="#trust" className="hover:text-foreground">Security</a>
         </nav>
         <div className="flex items-center gap-3">
           <Link to="/auth" className="text-[13px] text-muted-foreground hover:text-foreground">
@@ -82,7 +82,7 @@ function Hero() {
           transition={{ duration: 0.6, ease }}
           className="mb-6 text-[12px] uppercase tracking-[0.2em] text-muted-foreground"
         >
-          Docker Security Pen-testing, on demand
+          Docker Security Auditing, on demand
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -90,7 +90,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.05 }}
           className="max-w-4xl font-serif text-5xl leading-[1.02] tracking-[-0.02em] md:text-7xl"
         >
-          Audit your Docker setups. Protect your containers.
+          Audit your Docker setups. Secure your containers.
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -98,7 +98,7 @@ function Hero() {
           transition={{ duration: 0.8, ease, delay: 0.15 }}
           className="mt-6 max-w-2xl text-[17px] leading-relaxed text-muted-foreground"
         >
-          A team of AI agents scans your repositories, audits Dockerfiles for configuration risks, checks dependencies for supply-chain compromises, and verifies environment definitions to find security flaws.
+          A team of AI agents audits your repository Dockerfiles for configuration risks, scans compose templates for exposed secrets, audits package manifests, and flags dangerous host port bindings.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -110,7 +110,7 @@ function Hero() {
             to="/auth"
             className="rounded-full bg-foreground px-6 py-3 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
           >
-            Start an engagement
+            Start an audit
           </Link>
           <a
             href="#how"
@@ -126,15 +126,15 @@ function Hero() {
 
 function How() {
   const steps = [
-    { k: "01", t: "Point us at your repo", d: "Paste your public or private GitHub URL and select a branch to initiate security audits." },
+    { k: "01", t: "Point us at your repo", d: "Paste your public or private GitHub URL and select a branch to initiate configuration audits." },
     { k: "02", t: "Docker verification check", d: "Breach scans the repository root. If no Docker files or configurations are found, the AI team immediately rejects it." },
-    { k: "03", t: "Agents pen-test in parallel", d: "Specialist agents audit exposed ports, scan for embedded credentials, trace unsafe command injections, and check supply chain compromises." },
-    { k: "04", t: "Reproduction reports", d: "Get detailed severity-graded findings with reproduction logs, remediation guidelines, and downloadable PDFs." },
+    { k: "03", t: "Agents audit in parallel", d: "Specialist agents check for unsafe port exposures, scan for embedded credentials, trace command injections, and find supply chain compromises." },
+    { k: "04", t: "Remediation reports", d: "Get detailed severity-graded findings with Dockerfile fixes, secure configuration advice, and downloadable PDFs." },
   ];
   return (
     <section id="how" className="border-t border-black/5 bg-black/[.015]">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
-        <h2 className="max-w-2xl font-serif text-3xl tracking-[-0.02em] md:text-5xl">How an engagement runs.</h2>
+        <h2 className="max-w-2xl font-serif text-3xl tracking-[-0.02em] md:text-5xl">How an audit runs.</h2>
         <div className="mt-16 flex flex-col md:flex-row items-stretch justify-between gap-8 md:gap-4">
           {steps.map((s, i) => (
             <motion.div
@@ -217,9 +217,9 @@ function Team() {
     <section id="team" className="border-t border-black/5">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
         <div className="max-w-2xl">
-          <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Four Specialists. One Sandbox Engagement.</h2>
+          <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Four Specialists. One Audit Run.</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
-            Each agent has a dedicated security domain. They run in parallel during sandbox engagements, logging active network events and documenting proof directly.
+            Each agent has a dedicated security domain. They run in parallel during repository audits, logging active security events and documenting proof directly.
           </p>
         </div>
         <div className="mt-14 grid gap-6 md:grid-cols-2">
@@ -257,18 +257,18 @@ function Team() {
 
 function Trust() {
   const points = [
-    { t: "Disposable Docker sandboxes.", d: "We clone your repository into an isolated runtime container environment that is completely destroyed immediately post-run." },
+    { t: "In-memory code analysis.", d: "We fetch and analyze your repository structure and configurations in memory. Your setups are evaluated without execution, eliminating deployment runtime risks." },
     { t: "No persistent code storage.", d: "Your source code files are deleted the second the audit completes. We save only the structural vulnerability findings." },
-    { t: "Real exploit replication.", d: "Every warning or configuration flaw discovered is verified with non-destructive, safe exploit payload probes." },
+    { t: "Deterministic CIS audits.", d: "Audits align directly with Center for Internet Security (CIS) benchmarks and Docker security best practices." },
   ];
   return (
     <section id="trust" className="border-t border-black/5 bg-black/[.015]">
       <div className="mx-auto max-w-6xl px-6 py-24 md:py-32">
         <div className="grid gap-14 md:grid-cols-[1fr_2fr]">
           <div>
-            <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Sandbox First.</h2>
+            <h2 className="font-serif text-3xl tracking-[-0.02em] md:text-5xl">Security First.</h2>
             <p className="mt-5 text-[14px] leading-relaxed text-muted-foreground">
-              We test destructively. That only works if the blast radius is zero.
+              Auditing infrastructure requires trusted containment. We designed our analysis pipeline to have zero persistence footprint.
             </p>
           </div>
           <div className="space-y-10">
@@ -302,14 +302,14 @@ function CTA() {
           transition={{ duration: 0.7, ease }}
           className="mx-auto max-w-3xl font-serif text-4xl leading-[1.05] tracking-[-0.02em] md:text-6xl"
         >
-          Find the bug before it finds a headline.
+          Secure your container configurations.
         </motion.h2>
         <div className="mt-10">
           <Link
             to="/auth"
             className="inline-block rounded-full bg-foreground px-8 py-4 text-[14px] font-medium text-background transition-opacity hover:opacity-90"
           >
-            Start your first engagement
+            Start your first audit
           </Link>
         </div>
       </div>
