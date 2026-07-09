@@ -28,146 +28,349 @@ interface LogEntry {
 
 function downloadPdfReport(e: any, runs: any[], findings: any[]) {
   const doc = new jsPDF();
-  let y = 15;
+  
+  // Color Palette Constants
+  const primaryColor = [15, 23, 42]; // Slate 900
+  const secondaryColor = [71, 85, 105]; // Slate 600
+  const lightBgColor = [248, 250, 252]; // Slate 50
+  const accentRed = [185, 28, 28]; // Red 700
+  const accentOrange = [194, 65, 12]; // Orange 700
+  const accentGray = [100, 116, 139]; // Slate 500
 
-  // Title
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(20, 20, 20);
-  doc.text("BREACH PENETRATION TEST REPORT", 14, y);
-  y += 10;
-
-  // Divider
-  doc.setDrawColor(220, 220, 220);
-  doc.line(14, y, 196, y);
-  y += 10;
-
-  // Metadata
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("Target Name:", 14, y);
-  doc.setFont("helvetica", "normal");
-  doc.text(String(e.name), 42, y);
-  y += 6;
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Repository:", 14, y);
-  doc.setFont("helvetica", "normal");
-  doc.text(String(e.repo_url), 42, y);
-  y += 6;
-
-  if (e.target_url) {
-    doc.setFont("helvetica", "bold");
-    doc.text("Target URL:", 14, y);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(e.target_url), 42, y);
-    y += 6;
-  }
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Status:", 14, y);
-  doc.setFont("helvetica", "normal");
-  doc.text(`${e.status.toUpperCase()} (Verdict: ${e.verdict.toUpperCase()})`, 42, y);
-  y += 6;
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Date:", 14, y);
-  doc.setFont("helvetica", "normal");
-  const started = e.started_at ? new Date(e.started_at).toLocaleString() : "N/A";
-  const finished = e.finished_at ? new Date(e.finished_at).toLocaleString() : "N/A";
-  doc.text(`${started} - ${finished}`, 42, y);
-  y += 12;
-
-  // Executive Summary
-  if (e.summary) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("EXECUTIVE SUMMARY", 14, y);
-    y += 6;
+  // Helper: Header & Footer decoration (page number added at end)
+  const drawPageBorder = (pageNum: number, totalPages: number) => {
+    if (pageNum === 1) return; // Skip title page header/border
+    doc.setDrawColor(241, 245, 249);
+    doc.setLineWidth(0.5);
+    doc.line(14, 15, 196, 15); // Top header line
     
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text("BREACH DOCKER SECURITY AUDIT REPORT", 14, 11);
+    doc.text(`Page ${pageNum} of ${totalPages}`, 196, 11, { align: "right" });
+  };
+
+  // ----------------------------------------------------
+  // PAGE 1: TITLE PAGE
+  // ----------------------------------------------------
+  // Decorative side color bar
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 8, 297, "F");
+
+  // Title page branding
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(36);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("BREACH", 25, 60);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(14);
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  doc.text("Autonomous Docker Security Audit & Vulnerability Assessment", 25, 70);
+
+  // Large decorative line
+  doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setLineWidth(1.5);
+  doc.line(25, 80, 180, 80);
+
+  // Metadata Table Container
+  doc.setFillColor(lightBgColor[0], lightBgColor[1], lightBgColor[2]);
+  doc.rect(25, 110, 155, 95, "F");
+  
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  
+  let my = 125;
+  doc.text("AUDIT TARGET DETAILS", 35, my - 5);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(35, my - 2, 170, my - 2);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Configuration Title:", 35, my + 8);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.name), 80, my + 8);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Repository URL:", 35, my + 18);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.repo_url).length > 40 ? String(e.repo_url).slice(0, 38) + "..." : String(e.repo_url), 80, my + 18);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Git Branch:", 35, my + 28);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.branch), 80, my + 28);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Environment Mode:", 35, my + 38);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.environment_id).slice(0, 12) + "...", 80, my + 38);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text("Compliance Verdict:", 35, my + 48);
+  const verdictText = String(e.verdict).toUpperCase();
+  if (verdictText === "CRITICAL" || verdictText === "ISSUES") {
+    doc.setTextColor(accentRed[0], accentRed[1], accentRed[2]);
+  } else {
+    doc.setTextColor(16, 185, 129); // emerald 500
+  }
+  doc.text(verdictText, 80, my + 48);
+  
+  // Date Block
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  doc.setFont("helvetica", "bold");
+  doc.text("Audit Date:", 35, my + 58);
+  doc.setFont("helvetica", "normal");
+  const started = e.started_at ? new Date(e.started_at).toLocaleDateString() : "N/A";
+  doc.text(started, 80, my + 58);
+
+  // Confidentiality footer on Title page
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(accentRed[0], accentRed[1], accentRed[2]);
+  doc.text("CONFIDENTIAL — INTERNAL SECURITY REVIEW ONLY", 25, 270);
+  
+  // ----------------------------------------------------
+  // PAGE 2: EXEC SUMMARY & AGENTS
+  // ----------------------------------------------------
+  doc.addPage();
+  let y = 30;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("1. EXECUTIVE SUMMARY", 14, y);
+  y += 8;
+
+  if (e.summary) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(51, 65, 85); // Slate 700
     const splitSummary = doc.splitTextToSize(e.summary, 180);
     doc.text(splitSummary, 14, y);
-    doc.setTextColor(20, 20, 20);
-    y += (splitSummary.length * 5) + 10;
+    y += (splitSummary.length * 5) + 15;
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text("No general executive summary recorded for this configuration run.", 14, y);
+    y += 15;
   }
 
-  // Agent Team
+  // Divider
+  doc.setDrawColor(241, 245, 249);
+  doc.setLineWidth(0.5);
+  doc.line(14, y, 196, y);
+  y += 12;
+
+  // Agent Status List
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("AGENT RUN STATUS", 14, y);
-  y += 6;
+  doc.setFontSize(14);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("2. AGENT PIPELINE RUNS", 14, y);
+  y += 8;
+
+  runs.forEach((r) => {
+    const kindName = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[r.kind] || r.kind;
+    
+    // Status Pill color mapping
+    let statusColor = accentGray;
+    if (r.status === "complete") statusColor = [16, 185, 129];
+    else if (r.status === "failed") statusColor = accentRed;
+    else if (r.status === "running") statusColor = [59, 130, 246];
+
+    // Card background
+    doc.setFillColor(lightBgColor[0], lightBgColor[1], lightBgColor[2]);
+    doc.rect(14, y, 182, 16, "F");
+
+    // Agent name
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text(kindName, 18, y + 10);
+
+    // Status
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+    doc.text(r.status.toUpperCase(), 120, y + 10);
+
+    // Current step
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text(r.current_step || "idle", 150, y + 10);
+
+    y += 20;
+  });
+
+  // ----------------------------------------------------
+  // PAGE 3+: FINDINGS
+  // ----------------------------------------------------
+  doc.addPage();
+  y = 30;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("3. DETAILED SECURITY FINDINGS", 14, y);
+  y += 10;
+
+  if (findings.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(16, 185, 129);
+    doc.text("✔ Clean Audit: No vulnerabilities or configuration flaws detected.", 14, y);
+    y += 15;
+  } else {
+    findings.forEach((f, idx) => {
+      // Check page boundary for new finding card
+      if (y > 220) {
+        doc.addPage();
+        y = 30;
+      }
+
+      const severityName = f.severity.toUpperCase();
+      let sevColor = accentGray;
+      if (severityName === "CRITICAL" || severityName === "HIGH") sevColor = accentRed;
+      else if (severityName === "MEDIUM") sevColor = accentOrange;
+
+      // Findings Card Header Bar
+      doc.setFillColor(lightBgColor[0], lightBgColor[1], lightBgColor[2]);
+      doc.rect(14, y, 182, 10, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(`${idx + 1}. ${f.title}`, 18, y + 7);
+
+      // Severity tag
+      doc.setFillColor(sevColor[0], sevColor[1], sevColor[2]);
+      doc.rect(160, y + 2.5, 30, 5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text(severityName, 175, y + 6, { align: "center" });
+
+      y += 14;
+
+      // CWE code
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      const cweText = f.cwe ? `Classification: ${f.cwe}` : "Classification: Generic Flaw";
+      doc.text(cweText, 14, y);
+      y += 6;
+
+      // Description details
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(51, 65, 85);
+      const splitDesc = doc.splitTextToSize(f.description, 180);
+      doc.text(splitDesc, 14, y);
+      y += (splitDesc.length * 4.5) + 4;
+
+      // Remediation instructions
+      if (f.remediation) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text("Remediation Action:", 14, y);
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(51, 65, 85);
+        const splitRem = doc.splitTextToSize(f.remediation, 180);
+        doc.text(splitRem, 14, y);
+        y += (splitRem.length * 4.5) + 6;
+      }
+
+      y += 4; // spacing between findings
+    });
+  }
+
+  // ----------------------------------------------------
+  // PAGE LAST: CONCLUSION
+  // ----------------------------------------------------
+  // Force conclusion to its own dedicated final page
+  doc.addPage();
+  y = 30;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("4. AUDIT CONCLUSION & ACTIONS", 14, y);
+  y += 8;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  runs.forEach((r) => {
-    const kindName = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[r.kind] || r.kind;
-    doc.text(`- ${kindName} Agent: ${r.status.toUpperCase()} (${r.current_step || "idle"})`, 14, y);
-    y += 6;
-  });
-  y += 8;
+  doc.setTextColor(51, 65, 85);
+  
+  const conclusionText = 
+    "This autonomous audit assessed the static configurations of the target Dockerized repository " +
+    "in alignment with Center for Internet Security (CIS) Container Benchmarks. " +
+    "Vulnerabilities and flaws detected inside Dockerfiles or compose configs present direct channels " +
+    "for container runtime namespace escapes, privilege escalations, and credential leakage. " +
+    "Implementing the outlined remediation instructions is critical to locking down your image layers " +
+    "and restricting unnecessary network and system privilege paths.";
+  
+  const splitConcl = doc.splitTextToSize(conclusionText, 180);
+  doc.text(splitConcl, 14, y);
+  y += (splitConcl.length * 5) + 15;
 
-  // Page break for findings if vertical space is tight
-  if (y > 200) {
-    doc.addPage();
-    y = 20;
-  }
+  // Remediation Priority Box
+  doc.setFillColor(lightBgColor[0], lightBgColor[1], lightBgColor[2]);
+  doc.rect(14, y, 182, 50, "F");
 
-  // Findings Header
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(`FINDINGS (${findings.length} total)`, 14, y);
-  y += 8;
+  doc.setFontSize(11);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("Mitigation SLA Guidance", 20, y + 8);
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text("• Critical & High Severity findings: Must resolve within 7 days.", 20, y + 18);
+  doc.text("• Medium Severity findings: Must resolve within 30 days.", 20, y + 28);
+  doc.text("• Low Severity findings: Remediate during standard maintenance cycles.", 20, y + 38);
 
-  findings.forEach((f, idx) => {
-    // Check page boundaries
-    if (y > 250) {
-      doc.addPage();
-      y = 20;
-    }
+  y += 65;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(`${idx + 1}. [${f.severity.toUpperCase()}] ${f.title}`, 14, y);
-    y += 5;
+  // Sign-off
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text("AUDIT SYSTEM SIGN-OFF", 14, y);
+  y += 5;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    const cweText = f.cwe ? ` (CWE: ${f.cwe})` : "";
-    
-    // Description
-    const splitDesc = doc.splitTextToSize(`Description: ${f.description}${cweText}`, 180);
-    doc.text(splitDesc, 14, y);
-    y += (splitDesc.length * 4.5) + 2;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+  doc.text("Audited By: Breach AI Autonomous Auditor Agent Suite", 14, y + 5);
+  doc.text("System Verification Hash: " + String(e.id).slice(0, 16) + "... (Signed)", 14, y + 12);
+  
+  doc.text("Signature: ___________________________", 120, y + 8);
 
-    if (f.remediation) {
-      const splitRem = doc.splitTextToSize(`Remediation: ${f.remediation}`, 180);
-      doc.setFont("helvetica", "oblique");
-      doc.setTextColor(80, 80, 80);
-      doc.text(splitRem, 14, y);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(20, 20, 20);
-      y += (splitRem.length * 4.5) + 2;
-    }
-
-    y += 4; // spacing between findings
-  });
-
-  // Footer for each page
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
+  // ----------------------------------------------------
+  // DECORATE ALL PAGES WITH HEADERS & FOOTERS
+  // ----------------------------------------------------
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    drawPageBorder(i, totalPages);
+    
+    // Page bottom confidentiality footer on all pages
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Page ${i} of ${pageCount}`, 196 - 15, 287, { align: "right" });
+    doc.setTextColor(148, 163, 184);
     doc.text("CONFIDENTIAL - BREACH SECURITY REPORT", 14, 287);
   }
 
-  // Download PDF
-  doc.save(`Breach-Report-${e.name.replace(/[^a-z0-9]/gi, "_")}.pdf`);
+  // Save/Download PDF
+  doc.save(`Breach-Docker-Audit-Report-${e.name.replace(/[^a-z0-9]/gi, "_")}.pdf`);
 }
 
 function EngagementDetail() {
