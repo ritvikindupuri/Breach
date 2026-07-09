@@ -9,16 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ConfigureRouteImport } from './routes/configure'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppEngagementsIdRouteImport } from './routes/app.engagements.$id'
+import { Route as ApiPublicRunnerReportRouteImport } from './routes/api/public/runner/report'
+import { Route as ApiPublicRunnerRegisterRouteImport } from './routes/api/public/runner/register'
+import { Route as ApiPublicRunnerHeartbeatRouteImport } from './routes/api/public/runner/heartbeat'
+import { Route as ApiPublicRunnerClaimRouteImport } from './routes/api/public/runner/claim'
 
-const ConfigureRoute = ConfigureRouteImport.update({
-  id: '/configure',
-  path: '/configure',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -34,50 +33,109 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppEngagementsIdRoute = AppEngagementsIdRouteImport.update({
+  id: '/engagements/$id',
+  path: '/engagements/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiPublicRunnerReportRoute = ApiPublicRunnerReportRouteImport.update({
+  id: '/api/public/runner/report',
+  path: '/api/public/runner/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRunnerRegisterRoute = ApiPublicRunnerRegisterRouteImport.update({
+  id: '/api/public/runner/register',
+  path: '/api/public/runner/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRunnerHeartbeatRoute =
+  ApiPublicRunnerHeartbeatRouteImport.update({
+    id: '/api/public/runner/heartbeat',
+    path: '/api/public/runner/heartbeat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRunnerClaimRoute = ApiPublicRunnerClaimRouteImport.update({
+  id: '/api/public/runner/claim',
+  path: '/api/public/runner/claim',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
-  '/configure': typeof ConfigureRoute
+  '/app/engagements/$id': typeof AppEngagementsIdRoute
+  '/api/public/runner/claim': typeof ApiPublicRunnerClaimRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
+  '/api/public/runner/report': typeof ApiPublicRunnerReportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
-  '/configure': typeof ConfigureRoute
+  '/app/engagements/$id': typeof AppEngagementsIdRoute
+  '/api/public/runner/claim': typeof ApiPublicRunnerClaimRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
+  '/api/public/runner/report': typeof ApiPublicRunnerReportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
-  '/configure': typeof ConfigureRoute
+  '/app/engagements/$id': typeof AppEngagementsIdRoute
+  '/api/public/runner/claim': typeof ApiPublicRunnerClaimRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
+  '/api/public/runner/register': typeof ApiPublicRunnerRegisterRoute
+  '/api/public/runner/report': typeof ApiPublicRunnerReportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/auth' | '/configure'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/app/engagements/$id'
+    | '/api/public/runner/claim'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
+    | '/api/public/runner/report'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/auth' | '/configure'
-  id: '__root__' | '/' | '/app' | '/auth' | '/configure'
+  to:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/app/engagements/$id'
+    | '/api/public/runner/claim'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
+    | '/api/public/runner/report'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/app/engagements/$id'
+    | '/api/public/runner/claim'
+    | '/api/public/runner/heartbeat'
+    | '/api/public/runner/register'
+    | '/api/public/runner/report'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AppRoute: typeof AppRoute
+  AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ConfigureRoute: typeof ConfigureRoute
+  ApiPublicRunnerClaimRoute: typeof ApiPublicRunnerClaimRoute
+  ApiPublicRunnerHeartbeatRoute: typeof ApiPublicRunnerHeartbeatRoute
+  ApiPublicRunnerRegisterRoute: typeof ApiPublicRunnerRegisterRoute
+  ApiPublicRunnerReportRoute: typeof ApiPublicRunnerReportRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/configure': {
-      id: '/configure'
-      path: '/configure'
-      fullPath: '/configure'
-      preLoaderRoute: typeof ConfigureRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -99,25 +157,63 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/engagements/$id': {
+      id: '/app/engagements/$id'
+      path: '/engagements/$id'
+      fullPath: '/app/engagements/$id'
+      preLoaderRoute: typeof AppEngagementsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/public/runner/report': {
+      id: '/api/public/runner/report'
+      path: '/api/public/runner/report'
+      fullPath: '/api/public/runner/report'
+      preLoaderRoute: typeof ApiPublicRunnerReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/runner/register': {
+      id: '/api/public/runner/register'
+      path: '/api/public/runner/register'
+      fullPath: '/api/public/runner/register'
+      preLoaderRoute: typeof ApiPublicRunnerRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/runner/heartbeat': {
+      id: '/api/public/runner/heartbeat'
+      path: '/api/public/runner/heartbeat'
+      fullPath: '/api/public/runner/heartbeat'
+      preLoaderRoute: typeof ApiPublicRunnerHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/runner/claim': {
+      id: '/api/public/runner/claim'
+      path: '/api/public/runner/claim'
+      fullPath: '/api/public/runner/claim'
+      preLoaderRoute: typeof ApiPublicRunnerClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppEngagementsIdRoute: typeof AppEngagementsIdRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppEngagementsIdRoute: AppEngagementsIdRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AppRoute: AppRoute,
+  AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
-  ConfigureRoute: ConfigureRoute,
+  ApiPublicRunnerClaimRoute: ApiPublicRunnerClaimRoute,
+  ApiPublicRunnerHeartbeatRoute: ApiPublicRunnerHeartbeatRoute,
+  ApiPublicRunnerRegisterRoute: ApiPublicRunnerRegisterRoute,
+  ApiPublicRunnerReportRoute: ApiPublicRunnerReportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

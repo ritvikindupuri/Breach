@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_runs: {
+        Row: {
+          created_at: string
+          current_step: string | null
+          engagement_id: string
+          finished_at: string | null
+          id: string
+          kind: Database["public"]["Enums"]["agent_kind"]
+          owner_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["agent_status"]
+          step_count: number
+          transcript: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_step?: string | null
+          engagement_id: string
+          finished_at?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["agent_kind"]
+          owner_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["agent_status"]
+          step_count?: number
+          transcript?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_step?: string | null
+          engagement_id?: string
+          finished_at?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["agent_kind"]
+          owner_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["agent_status"]
+          step_count?: number
+          transcript?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -61,135 +114,80 @@ export type Database = {
           },
         ]
       }
-      aws_credentials: {
+      engagements: {
         Row: {
-          access_key_id_masked: string | null
+          agent_kinds: Database["public"]["Enums"]["agent_kind"][]
+          branch: string
+          commit_sha: string | null
           created_at: string
-          dek_iv: string
-          dek_tag: string | null
-          dek_wrapped: string
           environment_id: string
-          external_id_masked: string | null
+          finished_at: string | null
           id: string
-          label: string
-          last_rotated_at: string
-          last_verified_at: string | null
-          mode: Database["public"]["Enums"]["credential_mode"]
+          name: string
           owner_id: string
-          payload_ciphertext: string
-          payload_iv: string
-          payload_tag: string | null
-          region: string
-          role_arn: string | null
-          session_duration_seconds: number | null
+          repo_url: string
+          runner_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["engagement_status"]
+          summary: string | null
+          target_url: string | null
+          token_usage: number
           updated_at: string
-          verification_status: string | null
+          verdict: Database["public"]["Enums"]["engagement_verdict"]
         }
         Insert: {
-          access_key_id_masked?: string | null
+          agent_kinds?: Database["public"]["Enums"]["agent_kind"][]
+          branch?: string
+          commit_sha?: string | null
           created_at?: string
-          dek_iv: string
-          dek_tag?: string | null
-          dek_wrapped: string
           environment_id: string
-          external_id_masked?: string | null
+          finished_at?: string | null
           id?: string
-          label: string
-          last_rotated_at?: string
-          last_verified_at?: string | null
-          mode?: Database["public"]["Enums"]["credential_mode"]
+          name: string
           owner_id: string
-          payload_ciphertext: string
-          payload_iv: string
-          payload_tag?: string | null
-          region?: string
-          role_arn?: string | null
-          session_duration_seconds?: number | null
+          repo_url: string
+          runner_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["engagement_status"]
+          summary?: string | null
+          target_url?: string | null
+          token_usage?: number
           updated_at?: string
-          verification_status?: string | null
+          verdict?: Database["public"]["Enums"]["engagement_verdict"]
         }
         Update: {
-          access_key_id_masked?: string | null
+          agent_kinds?: Database["public"]["Enums"]["agent_kind"][]
+          branch?: string
+          commit_sha?: string | null
           created_at?: string
-          dek_iv?: string
-          dek_tag?: string | null
-          dek_wrapped?: string
           environment_id?: string
-          external_id_masked?: string | null
+          finished_at?: string | null
           id?: string
-          label?: string
-          last_rotated_at?: string
-          last_verified_at?: string | null
-          mode?: Database["public"]["Enums"]["credential_mode"]
+          name?: string
           owner_id?: string
-          payload_ciphertext?: string
-          payload_iv?: string
-          payload_tag?: string | null
-          region?: string
-          role_arn?: string | null
-          session_duration_seconds?: number | null
+          repo_url?: string
+          runner_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["engagement_status"]
+          summary?: string | null
+          target_url?: string | null
+          token_usage?: number
           updated_at?: string
-          verification_status?: string | null
+          verdict?: Database["public"]["Enums"]["engagement_verdict"]
         }
         Relationships: [
           {
-            foreignKeyName: "aws_credentials_environment_id_fkey"
+            foreignKeyName: "engagements_environment_id_fkey"
             columns: ["environment_id"]
             isOneToOne: false
             referencedRelation: "environments"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      detection_rules: {
-        Row: {
-          action: string
-          created_at: string
-          description: string | null
-          enabled: boolean
-          environment_id: string
-          id: string
-          kind: Database["public"]["Enums"]["rule_kind"]
-          name: string
-          owner_id: string
-          pattern: string | null
-          severity: Database["public"]["Enums"]["severity"]
-          updated_at: string
-        }
-        Insert: {
-          action?: string
-          created_at?: string
-          description?: string | null
-          enabled?: boolean
-          environment_id: string
-          id?: string
-          kind: Database["public"]["Enums"]["rule_kind"]
-          name: string
-          owner_id: string
-          pattern?: string | null
-          severity?: Database["public"]["Enums"]["severity"]
-          updated_at?: string
-        }
-        Update: {
-          action?: string
-          created_at?: string
-          description?: string | null
-          enabled?: boolean
-          environment_id?: string
-          id?: string
-          kind?: Database["public"]["Enums"]["rule_kind"]
-          name?: string
-          owner_id?: string
-          pattern?: string | null
-          severity?: Database["public"]["Enums"]["severity"]
-          updated_at?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "detection_rules_environment_id_fkey"
-            columns: ["environment_id"]
+            foreignKeyName: "engagements_runner_id_fkey"
+            columns: ["runner_id"]
             isOneToOne: false
-            referencedRelation: "environments"
+            referencedRelation: "runners"
             referencedColumns: ["id"]
           },
         ]
@@ -224,71 +222,126 @@ export type Database = {
         }
         Relationships: []
       }
-      intercepts: {
+      findings: {
         Row: {
-          action: string | null
-          actual_summary: string | null
+          agent_run_id: string | null
           created_at: string
-          diff_score: number | null
-          environment_id: string
-          expected_summary: string | null
+          cwe: string | null
+          description: string
+          engagement_id: string
+          evidence: Json
           id: string
           owner_id: string
-          payload_preview: string | null
-          reason: string | null
-          rule_id: string | null
-          severity: Database["public"]["Enums"]["severity"]
-          source_service: string
-          target_service: string
-          verdict: Database["public"]["Enums"]["verdict"]
+          remediation: string | null
+          severity: Database["public"]["Enums"]["finding_severity"]
+          title: string
         }
         Insert: {
-          action?: string | null
-          actual_summary?: string | null
+          agent_run_id?: string | null
           created_at?: string
-          diff_score?: number | null
-          environment_id: string
-          expected_summary?: string | null
+          cwe?: string | null
+          description: string
+          engagement_id: string
+          evidence?: Json
           id?: string
           owner_id: string
-          payload_preview?: string | null
-          reason?: string | null
-          rule_id?: string | null
-          severity?: Database["public"]["Enums"]["severity"]
-          source_service: string
-          target_service: string
-          verdict: Database["public"]["Enums"]["verdict"]
+          remediation?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          title: string
         }
         Update: {
-          action?: string | null
-          actual_summary?: string | null
+          agent_run_id?: string | null
           created_at?: string
-          diff_score?: number | null
-          environment_id?: string
-          expected_summary?: string | null
+          cwe?: string | null
+          description?: string
+          engagement_id?: string
+          evidence?: Json
           id?: string
           owner_id?: string
-          payload_preview?: string | null
-          reason?: string | null
-          rule_id?: string | null
-          severity?: Database["public"]["Enums"]["severity"]
-          source_service?: string
-          target_service?: string
-          verdict?: Database["public"]["Enums"]["verdict"]
+          remediation?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          title?: string
         }
         Relationships: [
           {
-            foreignKeyName: "intercepts_environment_id_fkey"
+            foreignKeyName: "findings_agent_run_id_fkey"
+            columns: ["agent_run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "findings_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_queue: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          engagement_id: string
+          environment_id: string
+          finished_at: string | null
+          id: string
+          owner_id: string
+          payload: Json
+          result: Json | null
+          runner_id: string | null
+          status: Database["public"]["Enums"]["job_status"]
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          engagement_id: string
+          environment_id: string
+          finished_at?: string | null
+          id?: string
+          owner_id: string
+          payload?: Json
+          result?: Json | null
+          runner_id?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          engagement_id?: string
+          environment_id?: string
+          finished_at?: string | null
+          id?: string
+          owner_id?: string
+          payload?: Json
+          result?: Json | null
+          runner_id?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_queue_environment_id_fkey"
             columns: ["environment_id"]
             isOneToOne: false
             referencedRelation: "environments"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "intercepts_rule_id_fkey"
-            columns: ["rule_id"]
+            foreignKeyName: "job_queue_runner_id_fkey"
+            columns: ["runner_id"]
             isOneToOne: false
-            referencedRelation: "detection_rules"
+            referencedRelation: "runners"
             referencedColumns: ["id"]
           },
         ]
@@ -320,6 +373,56 @@ export type Database = {
         }
         Relationships: []
       }
+      runners: {
+        Row: {
+          bootstrap_hash: string | null
+          created_at: string
+          environment_id: string
+          id: string
+          jobs_completed: number
+          last_seen_at: string | null
+          name: string
+          owner_id: string
+          status: Database["public"]["Enums"]["runner_status"]
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          bootstrap_hash?: string | null
+          created_at?: string
+          environment_id: string
+          id?: string
+          jobs_completed?: number
+          last_seen_at?: string | null
+          name: string
+          owner_id: string
+          status?: Database["public"]["Enums"]["runner_status"]
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          bootstrap_hash?: string | null
+          created_at?: string
+          environment_id?: string
+          id?: string
+          jobs_completed?: number
+          last_seen_at?: string | null
+          name?: string
+          owner_id?: string
+          status?: Database["public"]["Enums"]["runner_status"]
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runners_environment_id_fkey"
+            columns: ["environment_id"]
+            isOneToOne: false
+            referencedRelation: "environments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -341,24 +444,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vault_master_key: {
-        Row: {
-          created_at: string
-          id: number
-          key_b64: string
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          key_b64: string
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          key_b64?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -373,19 +458,21 @@ export type Database = {
       }
     }
     Enums: {
+      agent_kind: "recon" | "authn" | "injection" | "supply_chain"
+      agent_status: "pending" | "running" | "complete" | "failed"
       app_role: "admin" | "member" | "viewer"
-      credential_mode: "static_keys" | "assume_role"
+      engagement_status:
+        | "queued"
+        | "provisioning"
+        | "running"
+        | "complete"
+        | "failed"
+        | "cancelled"
+      engagement_verdict: "pending" | "clean" | "issues" | "critical"
       env_kind: "dev" | "staging" | "prod"
-      rule_kind:
-        | "prompt_injection"
-        | "iam_policy_injection"
-        | "schema_poisoning"
-        | "secret_leakage"
-        | "exfil_pattern"
-        | "custom_regex"
-        | "semantic_diff"
-      severity: "low" | "medium" | "high" | "critical"
-      verdict: "allow" | "flag" | "block"
+      finding_severity: "low" | "medium" | "high" | "critical"
+      job_status: "queued" | "claimed" | "complete" | "failed"
+      runner_status: "offline" | "online" | "revoked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -513,20 +600,22 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agent_kind: ["recon", "authn", "injection", "supply_chain"],
+      agent_status: ["pending", "running", "complete", "failed"],
       app_role: ["admin", "member", "viewer"],
-      credential_mode: ["static_keys", "assume_role"],
-      env_kind: ["dev", "staging", "prod"],
-      rule_kind: [
-        "prompt_injection",
-        "iam_policy_injection",
-        "schema_poisoning",
-        "secret_leakage",
-        "exfil_pattern",
-        "custom_regex",
-        "semantic_diff",
+      engagement_status: [
+        "queued",
+        "provisioning",
+        "running",
+        "complete",
+        "failed",
+        "cancelled",
       ],
-      severity: ["low", "medium", "high", "critical"],
-      verdict: ["allow", "flag", "block"],
+      engagement_verdict: ["pending", "clean", "issues", "critical"],
+      env_kind: ["dev", "staging", "prod"],
+      finding_severity: ["low", "medium", "high", "critical"],
+      job_status: ["queued", "claimed", "complete", "failed"],
+      runner_status: ["offline", "online", "revoked"],
     },
   },
 } as const

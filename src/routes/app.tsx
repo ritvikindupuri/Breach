@@ -1,937 +1,280 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  listEnvironments,
-  createEnvironment,
-  deleteEnvironment,
-  listCredentials,
-  createCredential,
-  deleteCredential,
-  verifyCredential,
-  listRules,
-  updateRule,
-  listIntercepts,
-  simulateIntercept,
-  listAudit,
-} from "@/lib/aim.functions";
+import { listEnvironments } from "@/lib/env.functions";
+import { listEngagements, createEngagement } from "@/lib/engagements.functions";
+import { listRunners, createRunner, deleteRunner } from "@/lib/runners.functions";
 
 export const Route = createFileRoute("/app")({
-  head: () => ({ meta: [{ title: "Liminal — Control Plane" }] }),
-  component: AppPage,
+  component: AppShell,
 });
 
-type Tab = "vault" | "rules" | "intercepts" | "audit";
-
-function AppPage() {
+function AppShell() {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [activeEnvId, setActiveEnvId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("vault");
+  const [tab, setTab] = useState<"engagements" | "runners">("engagements");
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (!data.session) navigate({ to: "/auth" });
-      else {
-        setUserEmail(data.session.user.email ?? null);
-        setReady(true);
+      if (!data.session) {
+        navigate({ to: "/auth", replace: true });
+        return;
       }
+      setEmail(data.session.user.email ?? null);
+      setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate({ to: "/auth" });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!s) navigate({ to: "/auth", replace: true });
     });
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
+    return () => sub.subscription.unsubscribe();
   }, [navigate]);
-
-  const envs = useQuery({
-    queryKey: ["envs"],
-    queryFn: () => listEnvironments(),
-    enabled: ready,
-  });
-
-  useEffect(() => {
-    if (!activeEnvId && envs.data && envs.data.length > 0) {
-      setActiveEnvId(envs.data[0].id);
-    }
-  }, [envs.data, activeEnvId]);
 
   if (!ready) return <div className="min-h-screen bg-background" />;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <TopBar
-        email={userEmail}
-        envs={envs.data ?? []}
-        activeEnvId={activeEnvId}
-        onEnvChange={setActiveEnvId}
-        onEnvsChanged={() => envs.refetch()}
-      />
-      {envs.data && envs.data.length === 0 ? (
-        <EmptyState onCreated={() => envs.refetch()} />
-      ) : activeEnvId ? (
-        <>
-          <TabBar tab={tab} setTab={setTab} />
-          <main className="mx-auto max-w-6xl px-6 pb-24">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={tab + activeEnvId}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.25 }}
-              >
-                {tab === "vault" && <VaultPanel envId={activeEnvId} />}
-                {tab === "rules" && <RulesPanel envId={activeEnvId} />}
-                {tab === "intercepts" && <InterceptsPanel envId={activeEnvId} />}
-                {tab === "audit" && <AuditPanel />}
-              </motion.div>
-            </AnimatePresence>
-          </main>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-/* ─────────────────── TopBar & env switcher ─────────────────── */
-
-function TopBar({
-  email,
-  envs,
-  activeEnvId,
-  onEnvChange,
-  onEnvsChanged,
-}: {
-  email: string | null;
-  envs: Array<{ id: string; name: string; kind: string }>;
-  activeEnvId: string | null;
-  onEnvChange: (id: string) => void;
-  onEnvsChanged: () => void;
-}) {
-  const [creating, setCreating] = useState(false);
-
-  return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-4 px-6 text-[13px]">
-        <Link to="/" className="flex items-center gap-1.5 font-display tracking-tight">
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-          <span>Liminal</span>
-        </Link>
-
-        <div className="flex items-center gap-3">
-          {envs.length > 0 && (
-            <select
-              value={activeEnvId ?? ""}
-              onChange={(e) => onEnvChange(e.target.value)}
-              className="rounded-md border border-border bg-background px-2 py-1 text-[13px]"
+      <header className="sticky top-0 z-40 border-b border-black/5 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link to="/" className="flex items-center gap-2 text-[15px] font-medium tracking-tight">
+            <Mark /> Breach
+          </Link>
+          <nav className="flex items-center gap-1 rounded-full bg-black/[.04] p-1 text-[13px]">
+            <TabButton active={tab === "engagements"} onClick={() => setTab("engagements")}>
+              Engagements
+            </TabButton>
+            <TabButton active={tab === "runners"} onClick={() => setTab("runners")}>
+              Runners
+            </TabButton>
+          </nav>
+          <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+            <span className="hidden sm:inline">{email}</span>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/auth", replace: true });
+              }}
+              className="rounded-full border border-black/10 px-3 py-1 hover:bg-black/[.03]"
             >
-              {envs.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} · {e.kind}
-                </option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => setCreating(true)}
-            className="rounded-md border border-border px-2 py-1 text-[13px] hover:bg-foreground/[0.03]"
-          >
-            + Env
-          </button>
+              Sign out
+            </button>
+          </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <span className="hidden text-foreground/60 md:inline">{email}</span>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="text-foreground/60 hover:text-foreground"
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {creating && (
-          <CreateEnvModal
-            onClose={() => setCreating(false)}
-            onCreated={() => {
-              setCreating(false);
-              onEnvsChanged();
-            }}
-          />
-        )}
-      </AnimatePresence>
-    </header>
-  );
-}
-
-function CreateEnvModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<"dev" | "staging" | "prod">("dev");
-  const [description, setDescription] = useState("");
-  const mut = useMutation({
-    mutationFn: () => createEnvironment({ data: { name, kind, description } }),
-    onSuccess: onCreated,
-  });
-
-  return (
-    <Modal onClose={onClose} title="New environment">
-      <div className="space-y-3">
-        <input
-          placeholder="Name (e.g. Production)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px]"
-        />
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value as never)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px]"
-        >
-          <option value="dev">Dev</option>
-          <option value="staging">Staging</option>
-          <option value="prod">Prod</option>
-        </select>
-        <textarea
-          placeholder="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px]"
-        />
-        {mut.error && (
-          <p className="text-[13px] text-red-600">{(mut.error as Error).message}</p>
-        )}
-        <button
-          disabled={!name || mut.isPending}
-          onClick={() => mut.mutate()}
-          className="w-full rounded-full bg-foreground px-4 py-2.5 text-[14px] font-medium text-background disabled:opacity-40"
-        >
-          {mut.isPending ? "Creating…" : "Create environment"}
-        </button>
-        <p className="pt-1 text-[12px] text-foreground/50">
-          A default detection rule set (prompt injection, IAM policy injection, secret
-          leakage, schema poisoning, semantic drift) will be seeded automatically.
-        </p>
-      </div>
-    </Modal>
-  );
-}
-
-/* ─────────────────── Empty state ─────────────────── */
-
-function EmptyState({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mx-auto max-w-lg px-6 pt-24 text-center">
-      <motion.h2
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="font-display text-4xl leading-tight"
-      >
-        Start with an environment.
-      </motion.h2>
-      <p className="mt-3 text-foreground/60">
-        Environments isolate credentials, rules, and intercepts. Most teams create one per
-        AWS account or per stage.
-      </p>
-      <button
-        onClick={() => setOpen(true)}
-        className="mt-8 rounded-full bg-foreground px-5 py-2.5 text-[14px] font-medium text-background"
-      >
-        Create your first environment
-      </button>
-      <AnimatePresence>
-        {open && (
-          <CreateEnvModal
-            onClose={() => setOpen(false)}
-            onCreated={() => {
-              setOpen(false);
-              onCreated();
-            }}
-          />
-        )}
-      </AnimatePresence>
+      </header>
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        {tab === "engagements" ? <EngagementsPane /> : <RunnersPane />}
+      </main>
     </div>
   );
 }
 
-/* ─────────────────── Tabs ─────────────────── */
-
-function TabBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "vault", label: "Vault" },
-    { id: "rules", label: "Detection Rules" },
-    { id: "intercepts", label: "Live Intercepts" },
-    { id: "audit", label: "Audit Trail" },
-  ];
+function Mark() {
   return (
-    <div className="border-b border-border/60">
-      <div className="mx-auto flex max-w-6xl gap-6 px-6 text-[13px]">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`relative py-3 ${
-              tab === t.id ? "text-foreground" : "text-foreground/50 hover:text-foreground/80"
-            }`}
-          >
-            {t.label}
-            {tab === t.id && (
-              <motion.div
-                layoutId="tab-underline"
-                className="absolute inset-x-0 -bottom-px h-px bg-foreground"
-              />
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 12L12 4L20 12L12 20L4 12Z" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 12L12 8L16 12L12 16L8 12Z" fill="currentColor" />
+    </svg>
+  );
+}
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-1.5 transition-colors ${
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-/* ─────────────────── Vault ─────────────────── */
+// ---------- Engagements ----------
 
-function VaultPanel({ envId }: { envId: string }) {
+function EngagementsPane() {
   const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["creds", envId],
-    queryFn: () => listCredentials({ data: { environmentId: envId } }),
-  });
-  const [adding, setAdding] = useState(false);
-  const verify = useMutation({
-    mutationFn: (id: string) => verifyCredential({ data: { id } }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["creds", envId] }),
-  });
-  const del = useMutation({
-    mutationFn: (id: string) => deleteCredential({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["creds", envId] }),
+  const [showNew, setShowNew] = useState(false);
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["engagements"],
+    queryFn: () => listEngagements(),
+    refetchInterval: 3000,
   });
 
   return (
-    <section className="pt-8">
+    <div>
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="font-display text-3xl">Credential Vault</h2>
-          <p className="mt-1 text-[14px] text-foreground/60">
-            Envelope-encrypted with AES-256-GCM. Plaintext is only ever decrypted inside a
-            signed server function.
-          </p>
+          <h1 className="font-serif text-4xl tracking-[-0.02em]">Engagements</h1>
+          <p className="mt-2 text-[14px] text-muted-foreground">Pen-tests you've launched against your apps.</p>
         </div>
         <button
-          onClick={() => setAdding(true)}
-          className="rounded-full bg-foreground px-4 py-2 text-[13px] font-medium text-background"
+          onClick={() => setShowNew(true)}
+          className="rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background transition-opacity hover:opacity-90"
         >
-          + Add credential
+          New engagement
         </button>
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-border">
-        <table className="w-full text-[13px]">
-          <thead className="bg-foreground/[0.02] text-[12px] uppercase tracking-wider text-foreground/50">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Label</th>
-              <th className="px-4 py-3 text-left font-medium">Mode</th>
-              <th className="px-4 py-3 text-left font-medium">Region</th>
-              <th className="px-4 py-3 text-left font-medium">Access key</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.length ? (
-              q.data.map((c) => (
-                <tr key={c.id} className="border-t border-border/60">
-                  <td className="px-4 py-3 font-medium">{c.label}</td>
-                  <td className="px-4 py-3 text-foreground/70">
-                    {c.mode === "static_keys" ? "Static keys" : "Assume role"}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-foreground/70">{c.region}</td>
-                  <td className="px-4 py-3 font-mono text-foreground/70">
-                    {c.access_key_id_masked ?? c.role_arn ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={c.verification_status} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      disabled={verify.isPending}
-                      onClick={() => verify.mutate(c.id)}
-                      className="text-link hover:underline"
-                    >
-                      Verify
-                    </button>
-                    <button
-                      onClick={() => del.mutate(c.id)}
-                      className="ml-4 text-foreground/50 hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </td>
+      <div className="mt-10">
+        {isLoading ? (
+          <SkeletonTable />
+        ) : data.length === 0 ? (
+          <EmptyState onNew={() => setShowNew(true)} />
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-black/10">
+            <table className="w-full">
+              <thead className="border-b border-black/10 bg-black/[.02]">
+                <tr className="text-left text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
+                  <th className="px-5 py-3 font-normal">Target</th>
+                  <th className="px-5 py-3 font-normal">Status</th>
+                  <th className="px-5 py-3 font-normal">Verdict</th>
+                  <th className="px-5 py-3 font-normal">Findings</th>
+                  <th className="px-5 py-3 font-normal">Started</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-foreground/50">
-                  No credentials yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {data.map((e) => (
+                  <tr key={e.id} className="border-b border-black/5 last:border-0 hover:bg-black/[.01]">
+                    <td className="px-5 py-4">
+                      <Link to="/app/engagements/$id" params={{ id: e.id }} className="block">
+                        <div className="font-medium tracking-tight">{e.name}</div>
+                        <div className="mt-0.5 truncate text-[12px] text-muted-foreground" style={{ maxWidth: 320 }}>
+                          {e.repo_url}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-5 py-4"><StatusPill status={e.status} /></td>
+                    <td className="px-5 py-4"><VerdictPill verdict={e.verdict} /></td>
+                    <td className="px-5 py-4 text-[13px]">
+                      {e.findings.total > 0 ? (
+                        <span>
+                          {e.findings.total}
+                          {e.findings.critical > 0 && <span className="ml-2 text-red-600">· {e.findings.critical} critical</span>}
+                          {e.findings.high > 0 && <span className="ml-2 text-orange-600">· {e.findings.high} high</span>}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-[13px] text-muted-foreground">
+                      {e.started_at ? new Date(e.started_at).toLocaleString() : "queued"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
-        {adding && (
-          <AddCredentialModal
-            envId={envId}
-            onClose={() => setAdding(false)}
+        {showNew && (
+          <NewEngagementModal
+            onClose={() => setShowNew(false)}
             onCreated={() => {
-              setAdding(false);
-              qc.invalidateQueries({ queryKey: ["creds", envId] });
+              setShowNew(false);
+              qc.invalidateQueries({ queryKey: ["engagements"] });
             }}
           />
         )}
       </AnimatePresence>
-    </section>
+    </div>
   );
 }
 
-function StatusPill({ status }: { status: string | null }) {
-  if (!status)
-    return (
-      <span className="rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[12px] text-foreground/60">
-        unverified
-      </span>
-    );
-  if (status === "verified")
-    return (
-      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[12px] text-emerald-700">
-        verified
-      </span>
-    );
-  if (status.startsWith("error:"))
-    return (
-      <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[12px] text-red-700" title={status}>
-        error
-      </span>
-    );
+function SkeletonTable() {
   return (
-    <span className="rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[12px] text-foreground/60">
+    <div className="space-y-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-14 animate-pulse rounded-xl bg-black/[.04]" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 py-24 text-center">
+      <div className="mx-auto max-w-md">
+        <h3 className="font-serif text-2xl tracking-[-0.02em]">No engagements yet</h3>
+        <p className="mt-2 text-[14px] text-muted-foreground">
+          Point the team at a repo and target URL. The recon agent goes first, then auth, injection, and
+          supply chain — usually done in under a minute.
+        </p>
+        <button
+          onClick={onNew}
+          className="mt-6 rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90"
+        >
+          Launch first engagement
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    queued: "bg-black/[.05] text-foreground/70",
+    provisioning: "bg-blue-500/10 text-blue-700",
+    running: "bg-blue-500/15 text-blue-700",
+    complete: "bg-emerald-500/10 text-emerald-700",
+    failed: "bg-red-500/10 text-red-700",
+    cancelled: "bg-black/[.05] text-muted-foreground",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${map[status] ?? "bg-black/5"}`}>
+      {(status === "running" || status === "provisioning") && (
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+      )}
       {status}
     </span>
   );
 }
+function VerdictPill({ verdict }: { verdict: string }) {
+  const map: Record<string, string> = {
+    pending: "text-muted-foreground",
+    clean: "text-emerald-700",
+    issues: "text-orange-700",
+    critical: "text-red-700",
+  };
+  return <span className={`text-[12px] font-medium ${map[verdict] ?? ""}`}>{verdict}</span>;
+}
 
-function AddCredentialModal({
-  envId,
-  onClose,
-  onCreated,
-}: {
-  envId: string;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [label, setLabel] = useState("");
-  const [mode, setMode] = useState<"static_keys" | "assume_role">("static_keys");
-  const [region, setRegion] = useState("us-east-1");
-  const [ak, setAk] = useState("");
-  const [sk, setSk] = useState("");
-  const [st, setSt] = useState("");
-  const [roleArn, setRoleArn] = useState("");
-  const [externalId, setExternalId] = useState("");
-  const [duration, setDuration] = useState(3600);
+function NewEngagementModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [repo, setRepo] = useState("");
+  const [branch, setBranch] = useState("main");
+  const [target, setTarget] = useState("");
+  const [envId, setEnvId] = useState<string | null>(null);
+  const [agents, setAgents] = useState<string[]>(["recon", "authn", "injection", "supply_chain"]);
 
-  const mut = useMutation({
+  const { data: envs = [] } = useQuery({ queryKey: ["envs"], queryFn: () => listEnvironments() });
+  useEffect(() => {
+    if (!envId && envs[0]) setEnvId(envs[0].id);
+  }, [envs, envId]);
+
+  const create = useMutation({
     mutationFn: () =>
-      createCredential({
+      createEngagement({
         data: {
-          environmentId: envId,
-          label,
-          mode,
-          region,
-          accessKeyId: mode === "static_keys" ? ak : undefined,
-          secretAccessKey: mode === "static_keys" ? sk : undefined,
-          sessionToken: mode === "static_keys" && st ? st : undefined,
-          roleArn: mode === "assume_role" ? roleArn : undefined,
-          externalId: mode === "assume_role" && externalId ? externalId : undefined,
-          sessionDurationSeconds: duration,
+          name,
+          repo_url: repo,
+          branch,
+          target_url: target || undefined,
+          environment_id: envId!,
+          agent_kinds: agents as ("recon" | "authn" | "injection" | "supply_chain")[],
         },
       }),
     onSuccess: onCreated,
   });
 
-  return (
-    <Modal onClose={onClose} title="Add AWS credential">
-      <div className="space-y-3">
-        <input
-          placeholder="Label (e.g. Prod SecOps admin)"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[14px]"
-        />
+  const toggle = (k: string) =>
+    setAgents((a) => (a.includes(k) ? a.filter((x) => x !== k) : [...a, k]));
 
-        <div className="grid grid-cols-2 gap-2">
-          <label
-            className={`cursor-pointer rounded-lg border px-3 py-2 text-[13px] ${
-              mode === "static_keys" ? "border-foreground bg-foreground/[0.04]" : "border-border"
-            }`}
-          >
-            <input
-              type="radio"
-              className="hidden"
-              checked={mode === "static_keys"}
-              onChange={() => setMode("static_keys")}
-            />
-            Static keys
-            <p className="mt-0.5 text-[11px] text-foreground/50">AKIA + Secret + Session</p>
-          </label>
-          <label
-            className={`cursor-pointer rounded-lg border px-3 py-2 text-[13px] ${
-              mode === "assume_role" ? "border-foreground bg-foreground/[0.04]" : "border-border"
-            }`}
-          >
-            <input
-              type="radio"
-              className="hidden"
-              checked={mode === "assume_role"}
-              onChange={() => setMode("assume_role")}
-            />
-            Assume role
-            <p className="mt-0.5 text-[11px] text-foreground/50">Role ARN + External ID</p>
-          </label>
-        </div>
+  const canSubmit = name && repo && envId && agents.length > 0 && !create.isPending;
 
-        <input
-          placeholder="Region"
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[13px]"
-        />
-
-        {mode === "static_keys" ? (
-          <>
-            <input
-              placeholder="AWS Access Key ID"
-              value={ak}
-              onChange={(e) => setAk(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[13px]"
-            />
-            <input
-              type="password"
-              placeholder="AWS Secret Access Key"
-              value={sk}
-              onChange={(e) => setSk(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[13px]"
-            />
-            <textarea
-              placeholder="Session Token (optional, for STS)"
-              value={st}
-              onChange={(e) => setSt(e.target.value)}
-              rows={2}
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[12px]"
-            />
-          </>
-        ) : (
-          <>
-            <input
-              placeholder="Role ARN (arn:aws:iam::123:role/Liminal)"
-              value={roleArn}
-              onChange={(e) => setRoleArn(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[13px]"
-            />
-            <input
-              type="password"
-              placeholder="External ID (optional)"
-              value={externalId}
-              onChange={(e) => setExternalId(e.target.value)}
-              autoComplete="off"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-[13px]"
-            />
-            <div>
-              <label className="text-[12px] text-foreground/60">
-                Session duration: {duration}s
-              </label>
-              <input
-                type="range"
-                min={900}
-                max={43200}
-                step={900}
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="w-full"
-              />
-            </div>
-          </>
-        )}
-
-        <div className="rounded-lg border border-border bg-foreground/[0.02] p-3 text-[12px] text-foreground/60">
-          <b className="text-foreground/80">🔒 Envelope encryption.</b> Your secret is
-          encrypted with a per-row data key, and that key is encrypted with a master key
-          held only by the server. The browser sends the secret once over TLS to the
-          server function; it is never persisted in plaintext, and it never touches
-          logs.
-        </div>
-
-        {mut.error && (
-          <p className="text-[13px] text-red-600">{(mut.error as Error).message}</p>
-        )}
-        <button
-          disabled={!label || mut.isPending}
-          onClick={() => mut.mutate()}
-          className="w-full rounded-full bg-foreground px-4 py-2.5 text-[14px] font-medium text-background disabled:opacity-40"
-        >
-          {mut.isPending ? "Sealing…" : "Seal into vault"}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-/* ─────────────────── Rules ─────────────────── */
-
-function RulesPanel({ envId }: { envId: string }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["rules", envId],
-    queryFn: () => listRules({ data: { environmentId: envId } }),
-  });
-  const mut = useMutation({
-    mutationFn: (v: { id: string; enabled?: boolean; action?: string }) => updateRule({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["rules", envId] }),
-  });
-
-  return (
-    <section className="pt-8">
-      <h2 className="font-display text-3xl">Detection Rules</h2>
-      <p className="mt-1 text-[14px] text-foreground/60">
-        Bedrock-assisted classifiers and regex sentinels run on every intercept. Toggle
-        actions between allow, flag, and block.
-      </p>
-
-      <div className="mt-8 space-y-2">
-        {q.data?.map((r) => (
-          <div
-            key={r.id}
-            className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background p-4"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{r.name}</span>
-                <SeverityBadge severity={r.severity} />
-              </div>
-              <div className="mt-0.5 truncate font-mono text-[12px] text-foreground/50">
-                {r.pattern}
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-[13px]">
-              <select
-                value={r.action}
-                onChange={(e) => mut.mutate({ id: r.id, action: e.target.value })}
-                className="rounded-md border border-border bg-background px-2 py-1"
-              >
-                <option value="allow">allow</option>
-                <option value="flag">flag</option>
-                <option value="block">block</option>
-              </select>
-              <button
-                onClick={() => mut.mutate({ id: r.id, enabled: !r.enabled })}
-                className={`rounded-full px-3 py-1 text-[12px] ${
-                  r.enabled ? "bg-foreground text-background" : "border border-border text-foreground/60"
-                }`}
-              >
-                {r.enabled ? "Enabled" : "Disabled"}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SeverityBadge({ severity }: { severity: string }) {
-  const map: Record<string, string> = {
-    low: "bg-foreground/[0.06] text-foreground/60",
-    medium: "bg-amber-500/10 text-amber-700",
-    high: "bg-orange-500/10 text-orange-700",
-    critical: "bg-red-500/10 text-red-700",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] uppercase tracking-wide ${map[severity] ?? map.low}`}>
-      {severity}
-    </span>
-  );
-}
-
-/* ─────────────────── Intercepts ─────────────────── */
-
-function InterceptsPanel({ envId }: { envId: string }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["intercepts", envId],
-    queryFn: () => listIntercepts({ data: { environmentId: envId, limit: 50 } }),
-    refetchInterval: 5000,
-  });
-  const sim = useMutation({
-    mutationFn: () => simulateIntercept({ data: { environmentId: envId } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["intercepts", envId] }),
-  });
-
-  // realtime subscribe
-  useEffect(() => {
-    const ch = supabase
-      .channel(`intercepts:${envId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "intercepts", filter: `environment_id=eq.${envId}` },
-        () => qc.invalidateQueries({ queryKey: ["intercepts", envId] }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [envId, qc]);
-
-  const [selected, setSelected] = useState<string | null>(null);
-  const current = useMemo(() => q.data?.find((x) => x.id === selected), [q.data, selected]);
-
-  return (
-    <section className="pt-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <h2 className="font-display text-3xl">Live Intercepts</h2>
-          <p className="mt-1 text-[14px] text-foreground/60">
-            Streaming via Postgres realtime. Click any row to see the semantic diff.
-          </p>
-        </div>
-        <button
-          onClick={() => sim.mutate()}
-          disabled={sim.isPending}
-          className="rounded-full border border-border px-4 py-2 text-[13px] hover:bg-foreground/[0.03]"
-        >
-          {sim.isPending ? "Injecting…" : "Simulate intercept"}
-        </button>
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <div className="overflow-hidden rounded-2xl border border-border">
-          <table className="w-full text-[13px]">
-            <thead className="bg-foreground/[0.02] text-[12px] uppercase tracking-wider text-foreground/50">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Verdict</th>
-                <th className="px-3 py-2 text-left font-medium">Flow</th>
-                <th className="px-3 py-2 text-left font-medium">Reason</th>
-                <th className="px-3 py-2 text-left font-medium">Δ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {q.data?.length ? (
-                q.data.map((i) => (
-                  <tr
-                    key={i.id}
-                    onClick={() => setSelected(i.id)}
-                    className={`cursor-pointer border-t border-border/60 hover:bg-foreground/[0.02] ${
-                      selected === i.id ? "bg-foreground/[0.03]" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2">
-                      <VerdictBadge verdict={i.verdict} />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-foreground/70">
-                      {i.source_service} → {i.target_service} · {i.action}
-                    </td>
-                    <td className="px-3 py-2 text-foreground/70">{i.reason}</td>
-                    <td className="px-3 py-2 font-mono text-foreground/60">
-                      {i.diff_score != null ? Number(i.diff_score).toFixed(2) : "—"}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-3 py-12 text-center text-foreground/50">
-                    No intercepts yet — click "Simulate intercept".
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="rounded-2xl border border-border p-5">
-          {current ? (
-            <div>
-              <div className="flex items-center gap-2">
-                <VerdictBadge verdict={current.verdict} />
-                <SeverityBadge severity={current.severity} />
-                <span className="text-[13px] text-foreground/50">
-                  Δ {Number(current.diff_score ?? 0).toFixed(2)}
-                </span>
-              </div>
-              <h3 className="mt-3 font-medium">{current.reason}</h3>
-              <p className="mt-1 font-mono text-[12px] text-foreground/60">
-                {current.source_service} → {current.target_service} · {current.action}
-              </p>
-              <div className="mt-4 space-y-3">
-                <div>
-                  <div className="mb-1 text-[11px] uppercase tracking-wider text-foreground/40">
-                    Expected
-                  </div>
-                  <pre className="whitespace-pre-wrap break-all rounded-lg bg-foreground/[0.03] p-3 font-mono text-[12px] text-foreground/70">
-                    {current.expected_summary}
-                  </pre>
-                </div>
-                <div>
-                  <div className="mb-1 text-[11px] uppercase tracking-wider text-foreground/40">
-                    Actual
-                  </div>
-                  <pre className="whitespace-pre-wrap break-all rounded-lg bg-red-500/[0.06] p-3 font-mono text-[12px] text-red-900">
-                    {current.actual_summary}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid h-full min-h-[240px] place-items-center text-[13px] text-foreground/50">
-              Select an intercept to inspect the diff.
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function VerdictBadge({ verdict }: { verdict: string }) {
-  const map: Record<string, string> = {
-    allow: "bg-emerald-500/10 text-emerald-700",
-    flag: "bg-amber-500/10 text-amber-700",
-    block: "bg-red-500/10 text-red-700",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] uppercase tracking-wide ${map[verdict] ?? map.allow}`}>
-      {verdict}
-    </span>
-  );
-}
-
-/* ─────────────────── Audit ─────────────────── */
-
-function AuditPanel() {
-  const q = useQuery({ queryKey: ["audit"], queryFn: () => listAudit() });
-
-  function exportCsv() {
-    const rows = q.data ?? [];
-    const header = ["created_at", "actor_id", "action", "target_type", "target_id", "entry_hash", "prev_hash"];
-    const csv = [
-      header.join(","),
-      ...rows.map((r) =>
-        header
-          .map((k) => JSON.stringify((r as Record<string, unknown>)[k] ?? ""))
-          .join(","),
-      ),
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `liminal-audit-${new Date().toISOString()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <section className="pt-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <h2 className="font-display text-3xl">Audit Trail</h2>
-          <p className="mt-1 text-[14px] text-foreground/60">
-            Hash-chained, append-only. Perfect for SOC 2 evidence collection.
-          </p>
-        </div>
-        <button
-          onClick={exportCsv}
-          className="rounded-full border border-border px-4 py-2 text-[13px] hover:bg-foreground/[0.03]"
-        >
-          Export CSV
-        </button>
-      </div>
-
-      <div className="mt-8 overflow-hidden rounded-2xl border border-border">
-        <table className="w-full text-[13px]">
-          <thead className="bg-foreground/[0.02] text-[12px] uppercase tracking-wider text-foreground/50">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">Time</th>
-              <th className="px-3 py-2 text-left font-medium">Action</th>
-              <th className="px-3 py-2 text-left font-medium">Target</th>
-              <th className="px-3 py-2 text-left font-medium">Hash</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.length ? (
-              q.data.map((r) => (
-                <tr key={r.id} className="border-t border-border/60">
-                  <td className="px-3 py-2 font-mono text-foreground/60">
-                    {new Date(r.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-2">{r.action}</td>
-                  <td className="px-3 py-2 font-mono text-foreground/60">
-                    {r.target_type ?? "—"} {r.target_id ? r.target_id.slice(0, 8) : ""}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-foreground/40" title={r.entry_hash}>
-                    {r.entry_hash.slice(0, 12)}…
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="px-3 py-12 text-center text-foreground/50">
-                  No audit entries yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-/* ─────────────────── Modal shell ─────────────────── */
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -941,24 +284,345 @@ function Modal({
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 12, scale: 0.98 }}
-        transition={{ duration: 0.2 }}
+        exit={{ opacity: 0, y: 20, scale: 0.98 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-lg rounded-2xl bg-background p-8 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-background p-6 shadow-2xl"
       >
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-xl">{title}</h3>
-          <button onClick={onClose} className="text-foreground/50 hover:text-foreground">
-            ✕
+        <h2 className="font-serif text-2xl tracking-[-0.02em]">New engagement</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          Give the team a target. Real HTTP probes will fire the moment you launch.
+        </p>
+
+        <div className="mt-6 space-y-4">
+          <Field label="Name">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Q3 login flow audit"
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
+            />
+          </Field>
+          <Field label="Git repository">
+            <input
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              placeholder="https://github.com/acme/webapp"
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Branch">
+              <input
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
+              />
+            </Field>
+            <Field label="Environment">
+              <select
+                value={envId ?? ""}
+                onChange={(e) => setEnvId(e.target.value)}
+                className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px] outline-none focus:border-foreground"
+              >
+                {envs.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.kind})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <Field label="Target URL (running instance to probe)">
+            <input
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="https://staging.acme.dev"
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
+            />
+          </Field>
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Agent team</div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { k: "recon", n: "Recon" },
+                { k: "authn", n: "AuthN" },
+                { k: "injection", n: "Injection" },
+                { k: "supply_chain", n: "Supply chain" },
+              ].map((a) => {
+                const on = agents.includes(a.k);
+                return (
+                  <button
+                    type="button"
+                    key={a.k}
+                    onClick={() => toggle(a.k)}
+                    className={`rounded-lg border px-3 py-2 text-left text-[13px] transition-colors ${
+                      on ? "border-foreground bg-foreground/5" : "border-black/10 hover:bg-black/[.02]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{a.n}</span>
+                      {on && <span className="text-[11px] text-emerald-700">on</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {create.error && (
+          <div className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-700">
+            {(create.error as Error).message}
+          </div>
+        )}
+
+        <div className="mt-8 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-full px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!canSubmit}
+            onClick={() => create.mutate()}
+            className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {create.isPending ? "Launching…" : "Launch engagement"}
           </button>
         </div>
-        <div className="mt-5">{children}</div>
       </motion.div>
     </motion.div>
   );
 }
 
-// keep deleteEnvironment import used
-void deleteEnvironment;
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <div className="mb-1.5 text-[11px] uppercase tracking-[0.15em] text-muted-foreground">{label}</div>
+      {children}
+    </label>
+  );
+}
+
+// ---------- Runners ----------
+
+function RunnersPane() {
+  const qc = useQueryClient();
+  const [showNew, setShowNew] = useState(false);
+  const [freshBootstrap, setFreshBootstrap] = useState<{ id: string; token: string } | null>(null);
+  const { data = [] } = useQuery({
+    queryKey: ["runners"],
+    queryFn: () => listRunners(),
+    refetchInterval: 5000,
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => deleteRunner({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
+  });
+
+  return (
+    <div>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="font-serif text-4xl tracking-[-0.02em]">Runners</h1>
+          <p className="mt-2 text-[14px] text-muted-foreground">
+            Self-hosted sandbox executors. Deploy one per environment on any Docker-capable host.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowNew(true)}
+          className="rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90"
+        >
+          New runner
+        </button>
+      </div>
+
+      <div className="mt-10 space-y-3">
+        {data.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-black/15 py-20 text-center">
+            <p className="text-[14px] text-muted-foreground">
+              No runners registered. Engagements will still run in the built-in server sandbox, but a self-hosted
+              runner unlocks source-level scans.
+            </p>
+          </div>
+        )}
+        {data.map((r) => (
+          <div key={r.id} className="flex items-center justify-between rounded-xl border border-black/10 px-5 py-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    r.status === "online" ? "bg-emerald-500" : "bg-muted-foreground/40"
+                  }`}
+                />
+                <span className="font-medium tracking-tight">{r.name}</span>
+                <span className="text-[12px] text-muted-foreground">
+                  {r.last_seen_at ? `last seen ${new Date(r.last_seen_at).toLocaleString()}` : "never"}
+                </span>
+              </div>
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">{r.id}</div>
+            </div>
+            <button
+              onClick={() => del.mutate(r.id)}
+              className="text-[12px] text-muted-foreground hover:text-red-600"
+            >
+              Revoke
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {showNew && (
+          <NewRunnerModal
+            onClose={() => setShowNew(false)}
+            onCreated={(res) => {
+              setShowNew(false);
+              setFreshBootstrap({ id: res.runner.id, token: res.bootstrap });
+              qc.invalidateQueries({ queryKey: ["runners"] });
+            }}
+          />
+        )}
+        {freshBootstrap && (
+          <BootstrapModal
+            runnerId={freshBootstrap.id}
+            token={freshBootstrap.token}
+            onClose={() => setFreshBootstrap(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function NewRunnerModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (res: { runner: { id: string }; bootstrap: string }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [envId, setEnvId] = useState<string | null>(null);
+  const { data: envs = [] } = useQuery({ queryKey: ["envs"], queryFn: () => listEnvironments() });
+  useEffect(() => {
+    if (!envId && envs[0]) setEnvId(envs[0].id);
+  }, [envs, envId]);
+  const create = useMutation({
+    mutationFn: () => createRunner({ data: { name, environment_id: envId! } }),
+    onSuccess: (r) => onCreated(r as { runner: { id: string }; bootstrap: string }),
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.98 }}
+        className="w-full max-w-md rounded-2xl bg-background p-8 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-serif text-2xl tracking-[-0.02em]">New runner</h2>
+        <div className="mt-6 space-y-4">
+          <Field label="Name">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="prod-runner-01"
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
+            />
+          </Field>
+          <Field label="Environment">
+            <select
+              value={envId ?? ""}
+              onChange={(e) => setEnvId(e.target.value)}
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px]"
+            >
+              {envs.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.kind})
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className="mt-8 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-full px-4 py-2 text-[13px] text-muted-foreground">
+            Cancel
+          </button>
+          <button
+            disabled={!name || !envId || create.isPending}
+            onClick={() => create.mutate()}
+            className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background disabled:opacity-40"
+          >
+            {create.isPending ? "Creating…" : "Create"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function BootstrapModal({
+  runnerId,
+  token,
+  onClose,
+}: {
+  runnerId: string;
+  token: string;
+  onClose: () => void;
+}) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://breach.app";
+  const cmd = `docker run --rm -d \\
+  --name breach-runner \\
+  -v /var/run/docker.sock:/var/run/docker.sock \\
+  -e BREACH_URL=${origin} \\
+  -e BREACH_RUNNER_ID=${runnerId} \\
+  -e BREACH_BOOTSTRAP=${token} \\
+  ghcr.io/breach/runner:latest`;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-xl rounded-2xl bg-background p-8 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-serif text-2xl tracking-[-0.02em]">Runner ready</h2>
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          Copy this once — the bootstrap token is shown only now. Run it on any Docker-capable host.
+        </p>
+        <pre className="mt-4 overflow-x-auto rounded-xl bg-black text-[11px] leading-relaxed text-emerald-300 p-4 font-mono">
+{cmd}
+        </pre>
+        <button
+          onClick={() => navigator.clipboard.writeText(cmd)}
+          className="mt-3 rounded-full border border-black/10 px-4 py-2 text-[12px] hover:bg-black/[.03]"
+        >
+          Copy command
+        </button>
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background">
+            Done
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
