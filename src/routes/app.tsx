@@ -844,9 +844,54 @@ function BootstrapModal({
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              Launch the auditor agent inside a Docker container. Mounting the Unix socket allows the container to audit your runtime environment configurations and list images:
+              Launch the auditor agent inside a Docker container. You can run the unified command below, or copy the individual parameters for configuration:
             </p>
             
+            {/* Split parameters fields */}
+            <div className="rounded-xl border border-black/5 bg-black/[0.01] p-4 space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Configuration Parameters</div>
+              
+              <div className="flex items-center justify-between text-xs border-b border-black/5 pb-2">
+                <span className="font-semibold text-muted-foreground">Breach URL</span>
+                <div className="flex items-center gap-2">
+                  <code className="bg-black/[0.04] px-2 py-0.5 rounded font-mono text-[11px]">{origin}</code>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(origin); }} 
+                    className="text-[10px] text-zinc-500 hover:text-black font-semibold"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs border-b border-black/5 pb-2">
+                <span className="font-semibold text-muted-foreground">Auditor ID (Runner ID)</span>
+                <div className="flex items-center gap-2">
+                  <code className="bg-black/[0.04] px-2 py-0.5 rounded font-mono text-[11px]">{runnerId}</code>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(runnerId); }} 
+                    className="text-[10px] text-zinc-500 hover:text-black font-semibold"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-muted-foreground">Bootstrap Token</span>
+                <div className="flex items-center gap-2">
+                  <code className="bg-black/[0.04] px-2 py-0.5 rounded font-mono text-[11px]">{token.slice(0, 16)}...</code>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(token); }} 
+                    className="text-[10px] text-zinc-500 hover:text-black font-semibold"
+                  >
+                    Copy Token
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground pt-2">Deployment Command</div>
             <div className="relative">
               <pre className="overflow-x-auto rounded-xl bg-black text-[11px] leading-relaxed text-emerald-300 p-5 font-mono">
 {cmd}
@@ -855,12 +900,12 @@ function BootstrapModal({
                 onClick={copyToClipboard}
                 className="absolute top-3 right-3 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-2.5 py-1 text-[10px] font-mono border border-zinc-700 transition-colors"
               >
-                {copied ? "Copied!" : "Copy"}
+                {copied ? "Copied!" : "Copy Command"}
               </button>
             </div>
             
             <p className="text-[11px] text-muted-foreground">
-              ⚠️ Copy this bootstrap token now. It contains critical environment keys and won't be shown again.
+              ⚠️ Copy the parameters or command now. The bootstrap token won't be shown again.
             </p>
 
             <div className="mt-8 flex justify-end gap-2 pt-2">

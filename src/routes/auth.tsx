@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Sign in — Liminal" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Breach" }] }),
   component: AuthPage,
 });
 
@@ -63,13 +63,13 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="mx-auto flex h-11 max-w-5xl items-center justify-between px-6 text-[13px]">
+      <header className="mx-auto flex h-11 max-w-5xl items-center justify-between px-6 text-[13px] py-8">
         <Link to="/" className="flex items-center gap-1.5 font-display tracking-tight">
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" strokeWidth="1.2" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M4 12L12 4L20 12L12 20L4 12Z" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M8 12L12 8L16 12L12 16L8 12Z" fill="currentColor" />
           </svg>
-          <span>Liminal</span>
+          <span className="font-semibold">Breach</span>
         </Link>
         <Link to="/" className="text-foreground/60 hover:text-foreground">
           ← Back
@@ -87,7 +87,7 @@ function AuthPage() {
         </h1>
         <p className="mt-3 text-center text-[15px] text-foreground/60">
           {mode === "signin"
-            ? "Sign in to your Liminal control plane."
+            ? "Sign in to your Breach control plane."
             : "Your credentials are sealed with envelope encryption before they ever touch disk."}
         </p>
 
@@ -149,7 +149,7 @@ function AuthPage() {
         </form>
 
         <p className="mt-6 text-center text-[13px] text-foreground/50">
-          {mode === "signin" ? "New to Liminal?" : "Already have an account?"}{" "}
+          {mode === "signin" ? "New to Breach?" : "Already have an account?"}{" "}
           <button
             onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
             className="text-link hover:underline"
