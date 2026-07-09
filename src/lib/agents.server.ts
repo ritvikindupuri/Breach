@@ -389,6 +389,8 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
   const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(repoUrl);
   if (gh) {
     const [, owner, repo] = gh;
+    
+    // 1. Audit standard package.json
     for (const branch of ["main", "master"]) {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`;
       await appendLog(runId, log, "info", `$ curl -s "${url}"`);
@@ -440,6 +442,71 @@ async function runSupplyChain(repoUrl: string, engagementId: string, ownerId: st
         break;
       }
     }
+
+    // 2. Audit Dockerfile configurations
+    for (const branch of ["main", "master"]) {
+      const dockerfileUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/Dockerfile`;
+      await appendLog(runId, log, "info", `[AGENT THINKING] Auditing Dockerfile configuration instructions for container configuration security controls.`);
+      await appendLog(runId, log, "info", `$ curl -s "${dockerfileUrl}"`);
+      const dfRes = await safeFetch(dockerfileUrl, undefined, runId, log);
+      if (dfRes.ok && dfRes.status === 200 && dfRes.body.length > 5) {
+        await appendLog(runId, log, "success", "Successfully downloaded Dockerfile. Commencing static configuration audit...", { current_step: "auditing dockerfile" });
+        const content = dfRes.body;
+        
+        // A. Privileged Root Check: check if USER instruction is missing or is explicitly root
+        const userMatches = [...content.matchAll(/^\s*USER\s+(\S+)/gim)];
+        const lastUser = userMatches.length > 0 ? userMatches[userMatches.length - 1][1].toLowerCase() : null;
+        if (!lastUser || lastUser === "root" || lastUser === "0") {
+          await appendLog(runId, log, "error", "VULNERABILITY: Container runs as privileged user (root). Exposed to container escapes.");
+          findings.push({
+            severity: "high",
+            title: "Container runs as privileged user (root)",
+            description: "No non-root USER instruction was found in the Dockerfile, or the last USER instruction explicitly sets user to root. If compromised, an attacker can escape the container namespaces.",
+            evidence: { file: "Dockerfile", user: lastUser || "unspecified (defaults to root)" },
+            remediation: "Create a non-privileged user and switch to it using the USER directive at the end of the Dockerfile.",
+            cwe: "CWE-250",
+          });
+        } else {
+          await appendLog(runId, log, "success", `Verified: Dockerfile switches to non-root user: ${lastUser}.`);
+        }
+
+        // B. Unpinned Base Image Check
+        const fromMatches = content.match(/^\s*FROM\s+(\S+)/im);
+        if (fromMatches) {
+          const baseImage = fromMatches[1];
+          // If it doesn't contain a tag (e.g. no ":") or has tag "latest"
+          if (!baseImage.includes(":") || baseImage.endsWith(":latest")) {
+            await appendLog(runId, log, "warning", `VULNERABILITY: Unpinned base image tag: ${baseImage}`);
+            findings.push({
+              severity: "medium",
+              title: "Unpinned base image tag",
+              description: `The base image ${baseImage} does not specify a concrete version pin, or uses the mutable 'latest' tag. This leads to non-reproducible builds and automatic dependency drift.`,
+              evidence: { file: "Dockerfile", from: baseImage },
+              remediation: "Pin base image tags to specific semantic versions (e.g., node:20-alpine or sha256 hashes).",
+              cwe: "CWE-829",
+            });
+          } else {
+            await appendLog(runId, log, "success", `Verified: Base image has pinned tag: ${baseImage}`);
+          }
+        }
+
+        // C. Sensitive Files Leak Check: COPY / ADD of secrets or credentials
+        const sensitiveRegex = /COPY\s+.*(\.env|id_rsa|passwd|credentials|secrets).*|ADD\s+.*(\.env|id_rsa|passwd|credentials|secrets).*/i;
+        if (sensitiveRegex.test(content)) {
+          const matchedLine = content.match(sensitiveRegex)?.[0];
+          await appendLog(runId, log, "error", `ALERT: Sensitive file copy detected: ${matchedLine}`);
+          findings.push({
+            severity: "critical",
+            title: "Exposed secret copied into container layer",
+            description: "The Dockerfile contains COPY/ADD directives that move sensitive environment files (.env, keys) into the container image layer. This leaks secrets to anyone with image read access.",
+            evidence: { file: "Dockerfile", instruction: matchedLine },
+            remediation: "Remove the copy directive. Load secrets at container runtime using environment variables, or use docker secrets mounts.",
+            cwe: "CWE-538",
+          });
+        }
+        break;
+      }
+    }
   } else {
     await appendLog(runId, log, "warning", "Repository is not hosted on GitHub. Direct dependency analysis unavailable without a runner.");
     findings.push({
@@ -469,6 +536,60 @@ export async function runEngagement(engagementId: string): Promise<void> {
   const { data: runs } = await supabaseAdmin.from("agent_runs").select("*").eq("engagement_id", engagementId);
   const runByKind = new Map<AgentKind, string>();
   for (const r of runs ?? []) runByKind.set(r.kind as AgentKind, r.id);
+
+  // 1. Verify if repository has Docker files (Dockerfile, docker-compose.yml)
+  const gh = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/.exec(eng.repo_url);
+  let hasDocker = false;
+  if (gh) {
+    const [, owner, repo] = gh;
+    // We will probe raw endpoints on main and master branch
+    for (const branch of ["main", "master"]) {
+      const paths = ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "docker/Dockerfile"];
+      for (const p of paths) {
+        const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${p}`;
+        // Standard HEAD probe to check if file exists
+        const res = await fetch(url, { method: "HEAD" });
+        if (res.status === 200) {
+          hasDocker = true;
+          break;
+        }
+      }
+      if (hasDocker) break;
+    }
+  } else {
+    // If not a github repo, fallback or assume it has it (or check local path if cloned)
+    hasDocker = true; // default fallback
+  }
+
+  if (!hasDocker) {
+    // Reject repo!
+    await supabaseAdmin
+      .from("engagements")
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        summary: "Rejected: No Docker configurations detected. Breach only audits Dockerized applications. Ensure a Dockerfile or docker-compose.yml exists in the repository root.",
+        verdict: "issues"
+      })
+      .eq("id", engagementId);
+      
+    // Fail the agent runs with a clear transcript explanation
+    for (const r of runs ?? []) {
+      await updateRun(r.id, {
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        current_step: "REJECTED: No Docker files found.",
+        transcript: [
+          {
+            timestamp: new Date().toISOString(),
+            type: "error",
+            message: "[SYSTEM] REJECTED: Repository does not contain a Dockerfile or docker-compose.yml. Breach audits Dockerized setups only."
+          }
+        ] as any
+      });
+    }
+    return;
+  }
 
   const findings: Finding[] = [];
   for (const kind of eng.agent_kinds as AgentKind[]) {

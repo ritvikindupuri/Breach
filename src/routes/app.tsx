@@ -52,7 +52,7 @@ function AppShell() {
               Engagements
             </TabButton>
             <TabButton active={tab === "runners"} onClick={() => setTab("runners")}>
-              Host Auditors
+              Runners
             </TabButton>
           </nav>
           <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
@@ -203,60 +203,60 @@ function SkeletonTable() {
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="rounded-2xl border border-dashed border-black/15 py-24 text-center">
-      <div className="mx-auto max-w-md">
-        <h3 className="font-serif text-2xl tracking-[-0.02em]">No engagements yet</h3>
-        <p className="mt-2 text-[14px] text-muted-foreground">
-          Point the team at a repo and target URL. The recon agent goes first, then auth, injection, and
-          supply chain — usually done in under a minute.
-        </p>
-        <button
-          onClick={onNew}
-          className="mt-6 rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90"
-        >
-          Launch first engagement
-        </button>
-      </div>
+      <h3 className="font-serif text-2xl tracking-[-0.01em]">Launch your first pen-test</h3>
+      <p className="mt-2 text-[14px] text-muted-foreground max-w-sm mx-auto leading-relaxed">
+        Point Breach at your repo branch and target URL. We'll run sandbox audits and scan for security threats.
+      </p>
+      <button
+        onClick={onNew}
+        className="mt-6 rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90"
+      >
+        New engagement
+      </button>
     </div>
   );
 }
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
-    queued: "bg-black/[.05] text-foreground/70",
+    queued: "bg-black/[.03] text-muted-foreground",
     provisioning: "bg-blue-500/10 text-blue-700",
-    running: "bg-blue-500/15 text-blue-700",
+    running: "bg-blue-500/10 text-blue-700",
     complete: "bg-emerald-500/10 text-emerald-700",
     failed: "bg-red-500/10 text-red-700",
-    cancelled: "bg-black/[.05] text-muted-foreground",
+    cancelled: "bg-black/[.03] text-muted-foreground",
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${map[status] ?? "bg-black/5"}`}>
-      {(status === "running" || status === "provisioning") && (
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-      )}
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${map[status] ?? map.queued}`}>
+      {status === "running" && <span className="h-1 w-1 animate-pulse rounded-full bg-current" />}
       {status}
     </span>
   );
 }
+
 function VerdictPill({ verdict }: { verdict: string }) {
   const map: Record<string, string> = {
-    pending: "text-muted-foreground",
-    clean: "text-emerald-700",
-    issues: "text-orange-700",
-    critical: "text-red-700",
+    pending: "bg-black/[.03] text-muted-foreground",
+    clean: "bg-emerald-500/10 text-emerald-700",
+    issues: "bg-amber-500/10 text-amber-700",
+    critical: "bg-red-500/10 text-red-700",
   };
-  return <span className={`text-[12px] font-medium ${map[verdict] ?? ""}`}>{verdict}</span>;
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${map[verdict] ?? map.pending}`}>
+      {verdict}
+    </span>
+  );
 }
 
 function NewEngagementModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
-  const [repo, setRepo] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("main");
-  const [target, setTarget] = useState("");
+  const [targetUrl, setTargetUrl] = useState("");
   const [envId, setEnvId] = useState<string | null>(null);
-  const [agents, setAgents] = useState<string[]>(["recon", "authn", "injection", "supply_chain"]);
 
   const { data: envs = [] } = useQuery({ queryKey: ["envs"], queryFn: () => listEnvironments() });
+
   useEffect(() => {
     if (!envId && envs[0]) setEnvId(envs[0].id);
   }, [envs, envId]);
@@ -266,20 +266,15 @@ function NewEngagementModal({ onClose, onCreated }: { onClose: () => void; onCre
       createEngagement({
         data: {
           name,
-          repo_url: repo,
+          repo_url: repoUrl,
           branch,
-          target_url: target || undefined,
+          target_url: targetUrl || null,
           environment_id: envId!,
-          agent_kinds: agents as ("recon" | "authn" | "injection" | "supply_chain")[],
+          agent_kinds: ["recon", "authn", "injection", "supply_chain"],
         },
       }),
-    onSuccess: onCreated,
+    onSuccess: () => onCreated(),
   });
-
-  const toggle = (k: string) =>
-    setAgents((a) => (a.includes(k) ? a.filter((x) => x !== k) : [...a, k]));
-
-  const canSubmit = name && repo && envId && agents.length > 0 && !create.isPending;
 
   return (
     <motion.div
@@ -293,109 +288,76 @@ function NewEngagementModal({ onClose, onCreated }: { onClose: () => void; onCre
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-lg rounded-2xl bg-background p-8 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl bg-background p-8 shadow-2xl text-left"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="font-serif text-2xl tracking-[-0.02em]">New engagement</h2>
+        <h2 className="font-serif text-2xl tracking-[-0.02em]">New pen-test engagement</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Give the team a target. Real HTTP probes will fire the moment you launch.
+          Provide your target repository and app URL to coordinate sandbox scanning.
         </p>
 
         <div className="mt-6 space-y-4">
-          <Field label="Name">
+          <Field label="Engagement Name">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Q3 login flow audit"
+              placeholder="Blastline AI Audit"
               className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
             />
           </Field>
-          <Field label="Git repository">
-            <input
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="https://github.com/acme/webapp"
-              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Branch">
-              <input
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
-              />
-            </Field>
-            <Field label="Environment">
-              <select
-                value={envId ?? ""}
-                onChange={(e) => setEnvId(e.target.value)}
-                className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px] outline-none focus:border-foreground"
-              >
-                {envs.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({e.kind})
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="Target URL (running instance to probe)">
-            <input
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="https://staging.acme.dev"
-              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-foreground"
-            />
-          </Field>
-          <div>
-            <div className="mb-2 text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Agent team</div>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { k: "recon", n: "Recon" },
-                { k: "authn", n: "AuthN" },
-                { k: "injection", n: "Injection" },
-                { k: "supply_chain", n: "Supply chain" },
-              ].map((a) => {
-                const on = agents.includes(a.k);
-                return (
-                  <button
-                    type="button"
-                    key={a.k}
-                    onClick={() => toggle(a.k)}
-                    className={`rounded-lg border px-3 py-2 text-left text-[13px] transition-colors ${
-                      on ? "border-foreground bg-foreground/5" : "border-black/10 hover:bg-black/[.02]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{a.n}</span>
-                      {on && <span className="text-[11px] text-emerald-700">on</span>}
-                    </div>
-                  </button>
-                );
-              })}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-2">
+              <Field label="GitHub Repository URL">
+                <input
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="https://github.com/org/repo"
+                  className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
+                />
+              </Field>
+            </div>
+            <div>
+              <Field label="Branch">
+                <input
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="main"
+                  className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
+                />
+              </Field>
             </div>
           </div>
+          <Field label="Target Application URL (Local or Public)">
+            <input
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              placeholder="http://localhost:8080"
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[14px] outline-none focus:border-foreground"
+            />
+          </Field>
+          <Field label="Target Environment">
+            <select
+              value={envId ?? ""}
+              onChange={(e) => setEnvId(e.target.value)}
+              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px]"
+            >
+              {envs.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.kind})
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
 
-        {create.error && (
-          <div className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-700">
-            {(create.error as Error).message}
-          </div>
-        )}
-
         <div className="mt-8 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-full px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
-          >
+          <button onClick={onClose} className="rounded-full px-4 py-2 text-[13px] text-muted-foreground">
             Cancel
           </button>
           <button
-            disabled={!canSubmit}
+            disabled={!name || !repoUrl || !envId || create.isPending}
             onClick={() => create.mutate()}
-            className="rounded-full bg-foreground px-5 py-2 text-[13px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background disabled:opacity-40"
           >
             {create.isPending ? "Launching…" : "Launch engagement"}
           </button>
@@ -420,7 +382,6 @@ function RunnersPane() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [freshBootstrap, setFreshBootstrap] = useState<{ id: string; token: string } | null>(null);
-  const [expandedRunnerId, setExpandedRunnerId] = useState<string | null>(null);
   const { data = [] } = useQuery({
     queryKey: ["runners"],
     queryFn: () => listRunners(),
@@ -435,170 +396,51 @@ function RunnersPane() {
     <div>
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-serif text-4xl tracking-[-0.02em]">Docker Daemon & Host Auditors</h1>
+          <h1 className="font-serif text-4xl tracking-[-0.02em]">Runners</h1>
           <p className="mt-2 text-[14px] text-muted-foreground">
-            Register self-hosted runners to audit host configurations, daemon status, and running container escape vectors.
+            Self-hosted sandbox executors. Deploy one per environment on any Docker-capable host.
           </p>
         </div>
         <button
           onClick={() => setShowNew(true)}
-          className="rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90 animate-fade-in"
+          className="rounded-full bg-foreground px-5 py-2.5 text-[13px] font-medium text-background hover:opacity-90"
         >
-          New auditor runner
+          New runner
         </button>
       </div>
 
-      <div className="mt-10 space-y-4">
+      <div className="mt-10 space-y-3">
         {data.length === 0 && (
           <div className="rounded-2xl border border-dashed border-black/15 py-20 text-center">
-            <p className="text-[14px] text-muted-foreground max-w-md mx-auto leading-relaxed">
-              No host auditors registered. Deploy a runner on any Docker-capable host to audit local daemons, scan image registries, and trace container vulnerabilities.
+            <p className="text-[14px] text-muted-foreground">
+              No runners registered. Engagements will run in the built-in server sandbox, but a self-hosted runner unlocks deep source scans.
             </p>
           </div>
         )}
-        {data.map((r) => {
-          const isExpanded = expandedRunnerId === r.id;
-          const isOnline = r.status === "online";
-          return (
-            <div key={r.id} className="rounded-2xl border border-black/10 bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        isOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/30"
-                      }`}
-                    />
-                    <span className="font-serif text-xl tracking-tight text-foreground">{r.name}</span>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] rounded-full px-2.5 py-0.5 bg-black/[0.04] text-muted-foreground">
-                      Auditor Agent
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground font-mono">
-                    <span>ID: {r.id.slice(0, 12)}...</span>
-                    <span>•</span>
-                    <span>{r.last_seen_at ? `Last active ${new Date(r.last_seen_at).toLocaleTimeString()}` : "never active"}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setExpandedRunnerId(isExpanded ? null : r.id)}
-                    className="rounded-full border border-black/10 px-4 py-2 text-[12px] font-medium text-foreground hover:bg-black/[0.03] transition-colors"
-                  >
-                    {isExpanded ? "Hide Details" : "View Host Diagnostics"}
-                  </button>
-                  <button
-                    onClick={() => del.mutate(r.id)}
-                    className="rounded-full border border-red-200 text-red-600 px-4 py-2 text-[12px] font-medium hover:bg-red-50 transition-colors"
-                  >
-                    Revoke
-                  </button>
-                </div>
+        {data.map((r) => (
+          <div key={r.id} className="flex items-center justify-between rounded-xl border border-black/10 px-5 py-4 text-left">
+            <div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    r.status === "online" ? "bg-emerald-500" : "bg-muted-foreground/40"
+                  }`}
+                />
+                <span className="font-medium tracking-tight">{r.name}</span>
+                <span className="text-[12px] text-muted-foreground">
+                  {r.last_seen_at ? `last seen ${new Date(r.last_seen_at).toLocaleString()}` : "never"}
+                </span>
               </div>
-
-              {/* Collapsible Diagnostics panel */}
-              {isExpanded && (
-                <div className="border-t border-black/5 bg-black/[0.01] p-6 space-y-6">
-                  {/* Diagnostics status grids */}
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-left">
-                    <div className="rounded-xl border border-black/5 bg-white p-4">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Docker Daemon connection</div>
-                      <div className="mt-1 flex items-center gap-2 font-mono text-[12px] text-emerald-600 font-semibold">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        ACTIVE (unix socket)
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                        Mounted `/var/run/docker.sock` successfully verified.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-black/5 bg-white p-4">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Image Scanner Database</div>
-                      <div className="mt-1 flex items-center gap-2 font-mono text-[12px] text-emerald-600 font-semibold">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        SYNCHRONIZED
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                        Local vulnerability DB current (Trivy Engine ver 0.49.1).
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-black/5 bg-white p-4">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Escape Vulnerability Auditor</div>
-                      <div className="mt-1 flex items-center gap-2 font-mono text-[12px] text-emerald-600 font-semibold">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        AUDIT ENABLED
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                        Kernel capability inspection enabled via `/proc` trace.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-black/5 bg-white p-4">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Jobs Audited</div>
-                      <div className="mt-1 text-base font-bold text-foreground">
-                        {r.jobs_completed} runs
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                        Total container security evaluations completed.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* CIS Benchmarks Check results */}
-                  <div className="rounded-xl border border-black/5 bg-white p-5 text-left space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold tracking-tight text-foreground">Host Docker Security Configuration (CIS Benchmark)</div>
-                      <span className="text-[11px] text-muted-foreground font-mono">Profile: Linux Host Security Baseline</span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-4 text-[12px] font-mono border-y border-black/5 py-3">
-                      <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-100">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span>12 Checks Passed</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-100">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                          <line x1="12" x2="12" y1="9" y2="13" />
-                          <line x1="12" x2="12.01" y1="17" y2="17" />
-                        </svg>
-                        <span>2 Warnings</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1 rounded border border-slate-100">
-                        <span>0 Critical Failures</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-[12px] leading-relaxed text-foreground/80">
-                      <div className="flex gap-2">
-                        <span className="text-emerald-500 font-bold">✔</span>
-                        <span><strong>1.1.4:</strong> Ensure audit rules are configured for Docker files and directories (Passed)</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className="text-emerald-500 font-bold">✔</span>
-                        <span><strong>2.1:</strong> Ensure network traffic is restricted between containers on the default bridge (Passed)</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className="text-amber-500 font-bold">⚠</span>
-                        <span><strong>2.2:</strong> Ensure logging level is set to info (Warning: Default log config active)</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className="text-amber-500 font-bold">⚠</span>
-                        <span><strong>3.1:</strong> Ensure docker.service permissions are set to 644 (Warning: local service file is writeable by root group)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">{r.id}</div>
             </div>
-          );
-        })}
+            <button
+              onClick={() => del.mutate(r.id)}
+              className="text-[12px] text-muted-foreground hover:text-red-600 animate-fade-in"
+            >
+              Revoke
+            </button>
+          </div>
+        ))}
       </div>
 
       <AnimatePresence>
@@ -654,7 +496,7 @@ function NewRunnerModal({
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
-        className="w-full max-w-md rounded-2xl bg-background p-8 shadow-2xl"
+        className="w-full max-w-md rounded-2xl bg-background p-8 shadow-2xl text-left"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="font-serif text-2xl tracking-[-0.02em]">New runner</h2>
@@ -768,7 +610,7 @@ function BootstrapModal({
       >
         {/* Step Progress Indicators */}
         <div className="flex items-center justify-between border-b border-black/5 pb-4 mb-6">
-          <h2 className="font-serif text-2xl tracking-[-0.02em] text-foreground">Set up Host Auditor</h2>
+          <h2 className="font-serif text-2xl tracking-[-0.02em] text-foreground">Set up Host Runner</h2>
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
             <span className={`px-2 py-0.5 rounded ${step === 1 ? "bg-black text-white font-bold" : "bg-black/[0.04]"}`}>1. Verify</span>
             <span className="text-black/25">➔</span>
@@ -782,7 +624,7 @@ function BootstrapModal({
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              Before deploying the security auditor agent, please verify your target host environment satisfies these requirements:
+              Before deploying the runner agent, please verify your target host environment satisfies these requirements:
             </p>
             <div className="space-y-2 bg-black/[0.01] border border-black/5 rounded-xl p-5">
               <label className="flex items-start gap-3 cursor-pointer">
@@ -820,7 +662,7 @@ function BootstrapModal({
                 />
                 <div className="text-[13px] leading-tight">
                   <span className="font-semibold block">Outbound network route permitted</span>
-                  <span className="text-muted-foreground text-[11px]">The auditor container must have HTTPS access back to this console API.</span>
+                  <span className="text-muted-foreground text-[11px]">The runner container must have HTTPS access back to this console API.</span>
                 </div>
               </label>
             </div>
@@ -844,7 +686,7 @@ function BootstrapModal({
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              Launch the auditor agent inside a Docker container. You can run the unified command below, or copy the individual parameters for configuration:
+              Launch the runner agent inside a Docker container. You can run the unified command below, or copy the individual parameters for configuration:
             </p>
             
             {/* Split parameters fields */}
@@ -957,7 +799,7 @@ function BootstrapModal({
                 <div className="space-y-1">
                   <h3 className="font-serif text-xl tracking-tight text-emerald-800">Connection Successful!</h3>
                   <p className="text-[12px] text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                    Auditor Agent handshake completed. The daemon socket has connected successfully and host compliance audits are active.
+                    Runner Agent handshake completed. The daemon socket has connected successfully and host compliance audits are active.
                   </p>
                 </div>
               </motion.div>
