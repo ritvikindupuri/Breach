@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEngagement } from "@/lib/engagements.functions";
+import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/app/engagements/$id")({
   component: EngagementDetail,
@@ -15,11 +16,156 @@ interface LogEntry {
   message: string;
 }
 
+function downloadPdfReport(e: any, runs: any[], findings: any[]) {
+  const doc = new jsPDF();
+  let y = 15;
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(20, 20, 20);
+  doc.text("BREACH PENETRATION TEST REPORT", 14, y);
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(220, 220, 220);
+  doc.line(14, y, 196, y);
+  y += 10;
+
+  // Metadata
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Target Name:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.name), 42, y);
+  y += 6;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Repository:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(e.repo_url), 42, y);
+  y += 6;
+
+  if (e.target_url) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Target URL:", 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(String(e.target_url), 42, y);
+    y += 6;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Status:", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${e.status.toUpperCase()} (Verdict: ${e.verdict.toUpperCase()})`, 42, y);
+  y += 6;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Date:", 14, y);
+  doc.setFont("helvetica", "normal");
+  const started = e.started_at ? new Date(e.started_at).toLocaleString() : "N/A";
+  const finished = e.finished_at ? new Date(e.finished_at).toLocaleString() : "N/A";
+  doc.text(`${started} - ${finished}`, 42, y);
+  y += 12;
+
+  // Executive Summary
+  if (e.summary) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("EXECUTIVE SUMMARY", 14, y);
+    y += 6;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const splitSummary = doc.splitTextToSize(e.summary, 180);
+    doc.text(splitSummary, 14, y);
+    doc.setTextColor(20, 20, 20);
+    y += (splitSummary.length * 5) + 10;
+  }
+
+  // Agent Team
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("AGENT RUN STATUS", 14, y);
+  y += 6;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  runs.forEach((r) => {
+    const kindName = { recon: "Recon", authn: "AuthN", injection: "Injection", supply_chain: "Supply chain" }[r.kind] || r.kind;
+    doc.text(`- ${kindName} Agent: ${r.status.toUpperCase()} (${r.current_step || "idle"})`, 14, y);
+    y += 6;
+  });
+  y += 8;
+
+  // Page break for findings if vertical space is tight
+  if (y > 200) {
+    doc.addPage();
+    y = 20;
+  }
+
+  // Findings Header
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(`FINDINGS (${findings.length} total)`, 14, y);
+  y += 8;
+
+  findings.forEach((f, idx) => {
+    // Check page boundaries
+    if (y > 250) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(`${idx + 1}. [${f.severity.toUpperCase()}] ${f.title}`, 14, y);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const cweText = f.cwe ? ` (CWE: ${f.cwe})` : "";
+    
+    // Description
+    const splitDesc = doc.splitTextToSize(`Description: ${f.description}${cweText}`, 180);
+    doc.text(splitDesc, 14, y);
+    y += (splitDesc.length * 4.5) + 2;
+
+    if (f.remediation) {
+      const splitRem = doc.splitTextToSize(`Remediation: ${f.remediation}`, 180);
+      doc.setFont("helvetica", "oblique");
+      doc.setTextColor(80, 80, 80);
+      doc.text(splitRem, 14, y);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(20, 20, 20);
+      y += (splitRem.length * 4.5) + 2;
+    }
+
+    y += 4; // spacing between findings
+  });
+
+  // Footer for each page
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Page ${i} of ${pageCount}`, 196 - 15, 287, { align: "right" });
+    doc.text("CONFIDENTIAL - BREACH SECURITY REPORT", 14, 287);
+  }
+
+  // Download PDF
+  doc.save(`Breach-Report-${e.name.replace(/[^a-z0-9]/gi, "_")}.pdf`);
+}
+
 function EngagementDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [findingsFilter, setFindingsFilter] = useState<"all" | "selected">("all");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -49,6 +195,13 @@ function EngagementDetail() {
   if (!ready || !data) return <div className="min-h-screen bg-background" />;
 
   const selectedRun = agent_runs.find((r) => r.id === selectedRunId);
+
+  const filteredFindings = findings.filter((f) => {
+    if (findingsFilter === "selected" && selectedRun) {
+      return f.agent_run_id === selectedRun.id;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -95,7 +248,13 @@ function EngagementDetail() {
                 <motion.div
                   key={r.id}
                   layout
-                  onClick={() => setSelectedRunId(r.id)}
+                  onClick={() => {
+                    setSelectedRunId(r.id);
+                    // Automatically toggle finding filter tab if appropriate
+                    if (findingsFilter === "selected") {
+                      // refresh to selected
+                    }
+                  }}
                   className={`rounded-xl border p-5 cursor-pointer transition-all duration-200 ${
                     selectedRunId === r.id
                       ? "border-foreground ring-2 ring-foreground/10 bg-black/[.02]"
@@ -128,57 +287,104 @@ function EngagementDetail() {
         </div>
 
         <section className="mt-12">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">FINDINGS</h2>
-            <div className="text-[13px] text-muted-foreground">{findings.length} total</div>
+          {/* Filter Bar and Report download */}
+          <div className="flex items-center justify-between border-b border-black/5 pb-3">
+            <div className="flex items-baseline gap-4">
+              <h2 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">FINDINGS</h2>
+              <div className="text-[13px] text-muted-foreground">{filteredFindings.length} shown</div>
+            </div>
+            
+            <button
+              onClick={() => downloadPdfReport(e, agent_runs, findings)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-black/[.03]"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
+              Download PDF Report
+            </button>
           </div>
-          <div className="mt-4 space-y-3">
-            {findings.length === 0 && e.status === "complete" && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-[14px] text-emerald-800">
-                Clean run. No exploitable issues found this pass.
-              </div>
-            )}
-            {findings.length === 0 && e.status !== "complete" && (
-              <div className="rounded-xl border border-dashed border-black/15 p-6 text-center text-[13px] text-muted-foreground">
-                Agents are still working. Findings appear here as they land.
-              </div>
-            )}
-            {findings.map((f) => (
-              <motion.details
-                key={f.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="group rounded-xl border border-black/10 open:border-foreground/40"
+
+          <div className="mt-4 flex gap-2 text-xs">
+            <button
+              onClick={() => setFindingsFilter("all")}
+              className={`rounded-full px-3.5 py-1.5 transition-colors ${
+                findingsFilter === "all" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground hover:bg-black/5"
+              }`}
+            >
+              All Findings ({findings.length})
+            </button>
+            {selectedRun && (
+              <button
+                onClick={() => setFindingsFilter("selected")}
+                className={`rounded-full px-3.5 py-1.5 transition-colors ${
+                  findingsFilter === "selected" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground hover:bg-black/5"
+                }`}
               >
-                <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <SeverityDot s={f.severity} />
-                    <div className="text-[14px] font-medium tracking-tight">{f.title}</div>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                    {f.cwe && <span className="font-mono">{f.cwe}</span>}
-                    <span className="uppercase tracking-[0.15em]">{f.severity}</span>
-                  </div>
-                </summary>
-                <div className="border-t border-black/5 px-5 py-4 text-[13px] leading-relaxed text-foreground/85">
-                  <p>{f.description}</p>
-                  {f.remediation && (
-                    <div className="mt-3">
-                      <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Remediation</div>
-                      <p className="mt-1">{f.remediation}</p>
+                {formatKind(selectedRun.kind)} Agent ({findings.filter(f => f.agent_run_id === selectedRun.id).length})
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {filteredFindings.length === 0 && e.status === "complete" && (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-[14px] text-emerald-800">
+                Clean run. No exploitable issues found in this scope.
+              </div>
+            )}
+            {filteredFindings.length === 0 && e.status !== "complete" && (
+              <div className="rounded-xl border border-dashed border-black/15 p-6 text-center text-[13px] text-muted-foreground">
+                Agents are still working or no findings recorded for the current filter.
+              </div>
+            )}
+            {filteredFindings.map((f) => {
+              const matchedRun = agent_runs.find((r) => r.id === f.agent_run_id);
+              return (
+                <motion.details
+                  key={f.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="group rounded-xl border border-black/10 open:border-foreground/40"
+                >
+                  <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <SeverityDot s={f.severity} />
+                      <div className="text-[14px] font-medium tracking-tight">
+                        {f.title}
+                        {matchedRun && (
+                          <span className="ml-2.5 inline-flex items-center rounded bg-black/[.04] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {formatKind(matchedRun.kind)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {f.evidence && Object.keys(f.evidence as object).length > 0 && (
-                    <div className="mt-3">
-                      <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Evidence</div>
-                      <pre className="mt-1 overflow-x-auto rounded-lg bg-black/[.03] p-3 font-mono text-[11px]">
-                        {JSON.stringify(f.evidence, null, 2)}
-                      </pre>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      {f.cwe && <span className="font-mono">{f.cwe}</span>}
+                      <span className="uppercase tracking-[0.15em]">{f.severity}</span>
                     </div>
-                  )}
-                </div>
-              </motion.details>
-            ))}
+                  </summary>
+                  <div className="border-t border-black/5 px-5 py-4 text-[13px] leading-relaxed text-foreground/85">
+                    <p>{f.description}</p>
+                    {f.remediation && (
+                      <div className="mt-3">
+                        <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Remediation</div>
+                        <p className="mt-1">{f.remediation}</p>
+                      </div>
+                    )}
+                    {f.evidence && Object.keys(f.evidence as object).length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Evidence</div>
+                        <pre className="mt-1 overflow-x-auto rounded-lg bg-black/[.03] p-3 font-mono text-[11px]">
+                          {JSON.stringify(f.evidence, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </motion.details>
+              );
+            })}
           </div>
         </section>
       </div>
