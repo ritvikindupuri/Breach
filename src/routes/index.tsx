@@ -166,7 +166,7 @@ function How() {
 function Team() {
   const roles = [
     { 
-      n: "Recon", 
+      n: "Network & Ports", 
       d: "Audits exposed container port directives in Dockerfiles and docker-compose configurations to block administrative service leaks.", 
       cwe: "CWE-200 · CWE-538 · CWE-693",
       icon: (
@@ -178,7 +178,7 @@ function Team() {
       )
     },
     { 
-      n: "AuthN", 
+      n: "Secrets & Credentials", 
       d: "Scans environment variables in docker-compose, Kubernetes templates, and env files for hardcoded passwords or default credentials.", 
       cwe: "CWE-204 · CWE-307 · CWE-384",
       icon: (
@@ -189,7 +189,7 @@ function Team() {
       )
     },
     { 
-      n: "Injection", 
+      n: "Runtime Commands", 
       d: "Audits CMD and ENTRYPOINT directives in Dockerfiles and shell scripts for insecure dynamic command invocations or argument expansions.", 
       cwe: "CWE-79 · CWE-89 · CWE-918",
       icon: (
@@ -201,7 +201,7 @@ function Team() {
       )
     },
     { 
-      n: "Supply chain", 
+      n: "Images & Dependencies", 
       d: "Parses package manifests for compromised NPM packages, checks dependency footprints, and audits Dockerfile instructions for non-root USER directives, unpinned base images, and embedded secrets.", 
       cwe: "CWE-506 · CWE-829",
       icon: (
@@ -239,10 +239,10 @@ function Team() {
                   </div>
                   <div>
                     <div className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground">SPECIALIST</div>
-                    <div className="font-serif text-xl tracking-tight text-foreground">{r.n} Agent</div>
+                    <div className="font-serif text-xl tracking-tight text-foreground">{r.n}</div>
                   </div>
                 </div>
-                <p className="mt-5 text-[13.5px] leading-relaxed text-muted-foreground">{r.d}</p>
+                <p className="mt-5 text-[13.5px] leading-relaxed text-muted-foreground"> {r.d}</p>
               </div>
               <div className="mt-6 pt-4 border-t border-black/5 font-mono text-[10px] text-muted-foreground/70">
                 AUDITS: {r.cwe}
