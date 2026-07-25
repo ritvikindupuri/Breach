@@ -198,13 +198,16 @@ async function fetchGithubFile(
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
   const res = await safeFetch(apiUrl, { headers: apiHeaders }, runId, log);
   if (res.ok && res.status === 200) {
-    return res;
+    return { ok: true, status: res.status, body: res.body };
   }
 
   // Fallback to public raw github url if contents API fails or token is missing
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-  return safeFetch(rawUrl, undefined, runId, log);
+  const raw = await safeFetch(rawUrl, undefined, runId, log);
+  if (raw.ok) return { ok: true, status: raw.status, body: raw.body };
+  return { ok: false, status: 0, body: "", error: raw.error };
 }
+
 
 async function recordFinding(
   engagementId: string,

@@ -173,7 +173,8 @@ function downloadPdfReport(e: any, runs: any[], findings: any[]) {
   y += 8;
 
   runs.forEach((r) => {
-    const kindName = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[r.kind] || r.kind;
+    const kindMap: Record<string, string> = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" };
+    const kindName = kindMap[r.kind] || r.kind;
     
     // Status Pill color mapping
     let statusColor = accentGray;
@@ -403,7 +404,7 @@ function EngagementDetail() {
     }
   }, [agent_runs, selectedRunId]);
 
-  if (!ready || !data) return <div className="min-h-screen bg-background" />;
+  if (!ready || !data || !e) return <div className="min-h-screen bg-background" />;
 
   const selectedRun = agent_runs.find((r) => r.id === selectedRunId);
 
@@ -640,14 +641,19 @@ function EngagementDetail() {
                     </div>
 
                     <div className="h-[380px] overflow-y-auto p-5 font-mono text-[11.5px] leading-relaxed text-zinc-300 select-text bg-zinc-950">
-                      {(!selectedRun.transcript || selectedRun.transcript.length === 0) ? (
-                        <div className="flex h-full flex-col items-center justify-center text-zinc-500 text-center">
-                          <p>Initializing agent prober container...</p>
-                          <p className="mt-1 text-[10px]">Real-time execution logs will print here as the agent tests parameters.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {(selectedRun.transcript as LogEntry[]).map((log, idx) => {
+                      {(() => {
+                        const transcript = (selectedRun.transcript as unknown as LogEntry[] | null) ?? [];
+                        if (transcript.length === 0) {
+                          return (
+                            <div className="flex h-full flex-col items-center justify-center text-zinc-500 text-center">
+                              <p>Initializing agent prober container...</p>
+                              <p className="mt-1 text-[10px]">Real-time execution logs will print here as the agent tests parameters.</p>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="space-y-1">
+                            {transcript.map((log, idx) => {
                             const date = new Date(log.timestamp);
                             const timeStr = date.toLocaleTimeString([], { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
                             
@@ -691,8 +697,9 @@ function EngagementDetail() {
                               <span>{selectedRun.kind.toLowerCase()}-agent@sandbox:~$ exit</span>
                             </div>
                           )}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -721,7 +728,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("port") || f.title.toLowerCase().includes("expose")).map(f => (
                           <div key={f.id} className="text-xs bg-rose-500/5 text-rose-600 rounded-lg p-2.5 border border-rose-500/10 font-medium">
-                            🚨 Exposed: {f.evidence?.port || f.evidence?.mapping || "Port Exposure"}
+                            🚨 Exposed: {(f.evidence as any)?.port || (f.evidence as any)?.mapping || "Port Exposure"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("port") || f.title.toLowerCase().includes("expose")).length === 0 && (
@@ -741,7 +748,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("credential") || f.title.toLowerCase().includes("secret")).map(f => (
                           <div key={f.id} className="text-xs bg-rose-500/5 text-rose-600 rounded-lg p-2.5 border border-rose-500/10 font-medium">
-                            🔑 Weak Env: {f.evidence?.keyName || "Default Password"}
+                            🔑 Weak Env: {(f.evidence as any)?.keyName || "Default Password"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("credential") || f.title.toLowerCase().includes("secret")).length === 0 && (
@@ -781,7 +788,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("image") || f.title.toLowerCase().includes("dependency")).map(f => (
                           <div key={f.id} className="text-xs bg-amber-500/5 text-amber-700 rounded-lg p-2.5 border border-amber-500/10 font-medium">
-                            📦 Tag Drift: {f.evidence?.from || "Unpinned Tag"}
+                            📦 Tag Drift: {(f.evidence as any)?.from || "Unpinned Tag"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("image") || f.title.toLowerCase().includes("dependency")).length === 0 && (
