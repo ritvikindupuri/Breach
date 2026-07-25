@@ -728,7 +728,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("port") || f.title.toLowerCase().includes("expose")).map(f => (
                           <div key={f.id} className="text-xs bg-rose-500/5 text-rose-600 rounded-lg p-2.5 border border-rose-500/10 font-medium">
-                            🚨 Exposed: {f.evidence?.port || f.evidence?.mapping || "Port Exposure"}
+                            🚨 Exposed: {(f.evidence as any)?.port || (f.evidence as any)?.mapping || "Port Exposure"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("port") || f.title.toLowerCase().includes("expose")).length === 0 && (
@@ -748,7 +748,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("credential") || f.title.toLowerCase().includes("secret")).map(f => (
                           <div key={f.id} className="text-xs bg-rose-500/5 text-rose-600 rounded-lg p-2.5 border border-rose-500/10 font-medium">
-                            🔑 Weak Env: {f.evidence?.keyName || "Default Password"}
+                            🔑 Weak Env: {(f.evidence as any)?.keyName || "Default Password"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("credential") || f.title.toLowerCase().includes("secret")).length === 0 && (
@@ -788,7 +788,7 @@ function EngagementDetail() {
                       <div className="mt-4 border-t border-black/5 pt-4 space-y-2">
                         {findings.filter(f => f.title.toLowerCase().includes("image") || f.title.toLowerCase().includes("dependency")).map(f => (
                           <div key={f.id} className="text-xs bg-amber-500/5 text-amber-700 rounded-lg p-2.5 border border-amber-500/10 font-medium">
-                            📦 Tag Drift: {f.evidence?.from || "Unpinned Tag"}
+                            📦 Tag Drift: {(f.evidence as any)?.from || "Unpinned Tag"}
                           </div>
                         ))}
                         {findings.filter(f => f.title.toLowerCase().includes("image") || f.title.toLowerCase().includes("dependency")).length === 0 && (
