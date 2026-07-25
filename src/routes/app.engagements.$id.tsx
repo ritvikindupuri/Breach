@@ -697,8 +697,9 @@ function EngagementDetail() {
                               <span>{selectedRun.kind.toLowerCase()}-agent@sandbox:~$ exit</span>
                             </div>
                           )}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
