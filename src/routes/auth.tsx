@@ -4,8 +4,15 @@ import { motion } from "motion/react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 
+function safeNext(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  if (!v.startsWith("/") || v.startsWith("//")) return undefined;
+  return v;
+}
+
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in — Breach" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ next: safeNext(s.next) }),
   component: AuthPage,
 });
 
