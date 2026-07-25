@@ -4,13 +4,22 @@ import { motion } from "motion/react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 
+function safeNext(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  if (!v.startsWith("/") || v.startsWith("//")) return undefined;
+  return v;
+}
+
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in — Breach" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ next: safeNext(s.next) }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const dest = next ?? "/app";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,9 +29,9 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/app" });
+      if (data.session) window.location.assign(dest);
     });
-  }, [navigate]);
+  }, [dest]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,7 +43,7 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/app`,
+            emailRedirectTo: `${window.location.origin}${dest}`,
             data: { display_name: displayName || email.split("@")[0] },
           },
         });
@@ -43,7 +52,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate({ to: "/app" });
+      window.location.assign(dest);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -55,11 +64,12 @@ function AuthPage() {
     setErr(null);
     setLoading(true);
     const res = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/app`,
+      redirect_uri: `${window.location.origin}${dest}`,
     });
     if (res.error) setErr(res.error.message);
     setLoading(false);
   }
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
