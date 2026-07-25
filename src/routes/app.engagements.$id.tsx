@@ -173,7 +173,8 @@ function downloadPdfReport(e: any, runs: any[], findings: any[]) {
   y += 8;
 
   runs.forEach((r) => {
-    const kindName = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" }[r.kind] || r.kind;
+    const kindMap: Record<string, string> = { recon: "Network & Ports", authn: "Secrets & Credentials", injection: "Runtime Commands", supply_chain: "Images & Dependencies" };
+    const kindName = kindMap[r.kind] || r.kind;
     
     // Status Pill color mapping
     let statusColor = accentGray;
@@ -403,7 +404,7 @@ function EngagementDetail() {
     }
   }, [agent_runs, selectedRunId]);
 
-  if (!ready || !data) return <div className="min-h-screen bg-background" />;
+  if (!ready || !data || !e) return <div className="min-h-screen bg-background" />;
 
   const selectedRun = agent_runs.find((r) => r.id === selectedRunId);
 
@@ -640,14 +641,19 @@ function EngagementDetail() {
                     </div>
 
                     <div className="h-[380px] overflow-y-auto p-5 font-mono text-[11.5px] leading-relaxed text-zinc-300 select-text bg-zinc-950">
-                      {(!selectedRun.transcript || selectedRun.transcript.length === 0) ? (
-                        <div className="flex h-full flex-col items-center justify-center text-zinc-500 text-center">
-                          <p>Initializing agent prober container...</p>
-                          <p className="mt-1 text-[10px]">Real-time execution logs will print here as the agent tests parameters.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {(selectedRun.transcript as LogEntry[]).map((log, idx) => {
+                      {(() => {
+                        const transcript = (selectedRun.transcript as unknown as LogEntry[] | null) ?? [];
+                        if (transcript.length === 0) {
+                          return (
+                            <div className="flex h-full flex-col items-center justify-center text-zinc-500 text-center">
+                              <p>Initializing agent prober container...</p>
+                              <p className="mt-1 text-[10px]">Real-time execution logs will print here as the agent tests parameters.</p>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="space-y-1">
+                            {transcript.map((log, idx) => {
                             const date = new Date(log.timestamp);
                             const timeStr = date.toLocaleTimeString([], { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
                             
